@@ -87,10 +87,17 @@ def _with(rectangles: tuple[PixelRect, ...], *extra: PixelRect) -> FrameTemplate
     return FrameTemplate(rectangles + extra)
 
 
+def _replace(rectangles: tuple[PixelRect, ...], **changes: PixelRect) -> tuple[PixelRect, ...]:
+    return tuple(changes.get(str(index), rect) for index, rect in enumerate(rectangles))
+
+
 _WALK = (
-    _with(_UPRIGHT, _r(28, 12, 3, 2, ColorRole.SHADE)),
-    _with(_shift(_UPRIGHT, dy=1), _r(28, 14, 3, 2, ColorRole.SHADE),
-          _r(9, 25, 5, 5, ColorRole.SHADE), _r(20, 24, 5, 5, ColorRole.SHADE)),
+    FrameTemplate(_replace(_UPRIGHT, **{"5": _r(28, 12, 3, 6, ColorRole.SHADE)})),
+    FrameTemplate(_replace(_UPRIGHT,
+                           **{"0": _r(8, 16, 17, 11, ColorRole.BODY),
+                              "5": _r(28, 14, 3, 6, ColorRole.SHADE),
+                              "12": _r(11, 24, 5, 5, ColorRole.SHADE),
+                              "13": _r(18, 24, 5, 5, ColorRole.SHADE)})),
 )
 _IDLE = tuple(FrameTemplate(_UPRIGHT) for _ in range(3))
 _IDLE += tuple(FrameTemplate(_shift(_UPRIGHT, dy=1)) for _ in range(2))
@@ -102,13 +109,15 @@ _IDLE += (_with(tuple(r for r in _UPRIGHT if r.role is not ColorRole.EYE),
 _SLEEP_BASE = (
     _r(6, 19, 20, 8, ColorRole.BODY), _r(5, 16, 9, 8, ColorRole.BODY),
     _r(22, 20, 8, 3, ColorRole.SHADE), _r(27, 18, 3, 5, ColorRole.SHADE),
-    _r(8, 17, 3, 3, ColorRole.SHADE), _r(11, 20, 2, 1, ColorRole.EYE),
-    _r(16, 20, 2, 1, ColorRole.EYE), _r(8, 22, 7, 2, ColorRole.LIGHT),
+    _r(8, 17, 3, 3, ColorRole.SHADE), _r(11, 20, 2, 1, ColorRole.DARK),
+    _r(16, 20, 2, 1, ColorRole.DARK), _r(8, 22, 7, 2, ColorRole.LIGHT),
     _r(10, 24, 10, 2, ColorRole.COLLAR), _r(14, 25, 2, 2, ColorRole.COLLAR),
 )
 _SLEEP = (_with(_SLEEP_BASE, _r(28, 17, 2, 3, ColorRole.SHADE)),
           _with(_SLEEP_BASE, _r(29, 17, 1, 3, ColorRole.SHADE)))
-_REACT = (_with(tuple(r for r in _UPRIGHT if r.role is not ColorRole.EYE),
+_REACT = (_with(tuple(r for r in _UPRIGHT
+                      if r.role is not ColorRole.EYE
+                      and not (r.x in (10, 20) and r.width == 4 and r.height == 5)),
                  _r(12, 10, 3, 3, ColorRole.EYE), _r(20, 10, 3, 3, ColorRole.EYE),
                  _r(10, 4, 4, 5, ColorRole.SHADE), _r(20, 4, 4, 5, ColorRole.SHADE),
                  _r(28, 12, 3, 2, ColorRole.SHADE)),)

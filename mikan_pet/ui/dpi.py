@@ -57,6 +57,10 @@ class Win32DpiBackend:
         self._win32gui = win32gui_module or importlib.import_module("win32gui")
         self._win32con = win32con_module or importlib.import_module("win32con")
         self._user32 = user32 or ctypes.WinDLL("user32", use_last_error=True)
+        self._set_window_long_ptr = getattr(self._user32, "SetWindowLongPtrW", None)
+        if self._set_window_long_ptr is not None:
+            self._set_window_long_ptr.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_void_p]
+            self._set_window_long_ptr.restype = ctypes.c_void_p
         self._hwnd: int | None = None
         self._previous_proc: object | None = None
         self._window_proc: Callable[..., int] | None = None
@@ -124,11 +128,18 @@ class Win32DpiBackend:
     def restore_subclass(self) -> None:
         if self._previous_proc is None or self._hwnd is None:
             return
-        self._win32gui.SetWindowLong(
-            self._hwnd,
-            self._win32con.GWL_WNDPROC,
-            self._previous_proc,
-        )
+        if isinstance(self._previous_proc, int) and self._set_window_long_ptr is not None:
+            self._set_window_long_ptr(
+                self._hwnd,
+                self._win32con.GWL_WNDPROC,
+                ctypes.c_void_p(self._previous_proc),
+            )
+        else:
+            self._win32gui.SetWindowLong(
+                self._hwnd,
+                self._win32con.GWL_WNDPROC,
+                self._previous_proc,
+            )
         self._previous_proc = None
         self._window_proc = None
 

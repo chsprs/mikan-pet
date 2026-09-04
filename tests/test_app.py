@@ -15,7 +15,7 @@ from mikan_pet.core.types import Direction, MotionMode, Point, Pose, SkinId, Siz
 from mikan_pet.services.media_keys import MediaAction
 from mikan_pet.services.monitors import MonitorInfo
 from mikan_pet.services.settings import default_settings
-from mikan_pet.ui.dpi import Win32DpiBackend
+from mikan_pet.ui.dpi import DpiWatcher, Win32DpiBackend
 
 
 class AppTests(unittest.TestCase):
@@ -207,6 +207,7 @@ class AppTests(unittest.TestCase):
             controls_visible=False, always_on_top=False,
         )
         root = Mock()
+        root.winfo_fpixels.return_value = 96.0
         window = Mock()
         callback = Mock()
         with patch("mikan_pet.app.enable_per_monitor_dpi_awareness", return_value=True), patch(
@@ -221,7 +222,7 @@ class AppTests(unittest.TestCase):
         self.assertIs(window, result)
         monitor_service.refresh.assert_called_once()
         monitor_service.recover_position.assert_called_once_with(Point(9000, 9000), Size(144, 128))
-        self.assertEqual(["refresh", "recover", "root", "cache", "window"], construction_events)
+        self.assertEqual(["refresh", "root", "recover", "cache", "window"], construction_events)
         root_factory.assert_called_once()
         state = window_class.call_args.args[1].state
         self.assertEqual(
@@ -233,11 +234,62 @@ class AppTests(unittest.TestCase):
         self.assertIs(callback, window_class.call_args.args[5])
         cache_factory.assert_called_once_with(photo_factory)
 
+    def test_window_factory_uses_realized_dpi_for_stopped_default_position(self) -> None:
+        monitor = MonitorInfo("DISPLAY1", WorkArea(0, 0, 1920, 1040), True)
+        monitor_service = Mock()
+        monitor_service.primary.return_value = monitor
+        settings = default_settings().__class__(walking=False)
+        root = Mock()
+        root.winfo_fpixels.return_value = 144.0
+        window = Mock()
+        with patch("mikan_pet.app.enable_per_monitor_dpi_awareness", return_value=True), patch(
+            "mikan_pet.app.tk.Tk", return_value=root
+        ), patch(
+            "mikan_pet.app.PetWindow", return_value=window
+        ) as window_class:
+            default_window_factory(settings, monitor_service, Mock(), Mock())
+
+        state = window_class.call_args.args[1].state
+        self.assertEqual(Point(1668, 812), state.position)
+        self.assertEqual(MotionMode.STOPPED, state.motion)
+        self.assertEqual(Pose.IDLE, state.pose)
+
+    def test_raw_wndproc_restore_failure_preserves_references_for_retry(self) -> None:
+        win32gui = Mock()
+        win32gui.SetWindowLong.return_value = 0x12345678
+        win32con = Mock(GWL_WNDPROC=-4)
+        user32 = Mock()
+        user32.SetWindowLongPtrW.return_value = 0
+        backend = Win32DpiBackend(win32gui_module=win32gui, win32con_module=win32con, user32=user32)
+        backend.install_subclass(456, Mock(return_value=0))
+        callback = backend._window_proc
+
+        with patch("mikan_pet.ui.dpi.ctypes.get_last_error", return_value=5):
+            with self.assertRaisesRegex(OSError, "SetWindowLongPtrW"):
+                backend.restore_subclass()
+
+        self.assertEqual(456, backend._hwnd)
+        self.assertEqual(0x12345678, backend._previous_proc)
+        self.assertIs(callback, backend._window_proc)
+
+    def test_dpi_watcher_close_retries_after_restore_failure(self) -> None:
+        backend = Mock()
+        backend.restore_subclass.side_effect = [OSError("restore failed"), None]
+        watcher = DpiWatcher(Mock(), Mock(), backend)
+        watcher._installed = True
+
+        with self.assertRaisesRegex(OSError, "restore failed"):
+            watcher.close()
+        watcher.close()
+
+        self.assertEqual(2, backend.restore_subclass.call_count)
+
     def test_window_factory_destroys_partially_created_root_when_window_construction_fails(self) -> None:
         monitor = MonitorInfo("DISPLAY1", WorkArea(0, 0, 1920, 1040), True)
         monitor_service = Mock()
         monitor_service.primary.return_value = monitor
         root = Mock()
+        root.winfo_fpixels.return_value = 96.0
         with patch("mikan_pet.app.enable_per_monitor_dpi_awareness", return_value=True), patch(
             "mikan_pet.app.tk.Tk", return_value=root
         ), patch("mikan_pet.app.PetWindow", side_effect=RuntimeError("window failed")):

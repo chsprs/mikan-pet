@@ -129,11 +129,15 @@ class Win32DpiBackend:
         if self._previous_proc is None or self._hwnd is None:
             return
         if isinstance(self._previous_proc, int) and self._set_window_long_ptr is not None:
-            self._set_window_long_ptr(
+            ctypes.set_last_error(0)
+            result = self._set_window_long_ptr(
                 self._hwnd,
                 self._win32con.GWL_WNDPROC,
                 ctypes.c_void_p(self._previous_proc),
             )
+            error = ctypes.get_last_error()
+            if not result and error:
+                raise OSError(error, "SetWindowLongPtrW failed")
         else:
             self._win32gui.SetWindowLong(
                 self._hwnd,
@@ -191,6 +195,6 @@ class DpiWatcher:
     def close(self) -> None:
         if self._closed:
             return
-        self._closed = True
         if self._installed:
             self._backend.restore_subclass()
+        self._closed = True

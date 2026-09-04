@@ -9,7 +9,8 @@ from tkinter import messagebox
 
 from mikan_pet.core.sprites import validate_registry
 from mikan_pet.core.state import PetController, PetState
-from mikan_pet.core.types import Direction, MotionMode, Pose, Size
+from mikan_pet.core.types import Direction, MotionMode, Pose
+from mikan_pet.core.window_layout import DpiMetrics, metrics_for_dpi
 from mikan_pet.services.media_keys import MEDIA_VIRTUAL_KEYS, MediaAction, MediaKeyService
 from mikan_pet.services.monitors import MonitorService, Win32MonitorBackend, default_position, enable_per_monitor_dpi_awareness
 from mikan_pet.services.settings import AppSettings, SettingsStore, default_settings, settings_path
@@ -19,7 +20,6 @@ from mikan_pet.ui.sprite_cache import SpriteCache
 
 
 VERSION = "0.1.0"
-_BASE_PET_SIZE = Size(144, 128)
 _MUTEX_NAME = "Local\\MikanPet"
 
 WindowFactory = Callable[[AppSettings, MonitorService, MediaKeyService, Callable[[AppSettings], None]], PetWindow]
@@ -68,11 +68,21 @@ class MikanPetApplication:
                 self.singleton.release()
 
 
-def _state_from_settings(settings: AppSettings, monitor_service: MonitorService) -> PetState:
+def realized_dpi(root: object) -> int:
+    """Read the already-realized Tk root DPI as an integer physical value."""
+    return int(round(float(root.winfo_fpixels("1i"))))
+
+
+def _state_from_settings(
+    settings: AppSettings,
+    monitor_service: MonitorService,
+    metrics: DpiMetrics,
+) -> PetState:
     if settings.position is None:
-        position = default_position(monitor_service.primary().work_area, _BASE_PET_SIZE, 24)
+        margin = (24 * metrics.dpi + 48) // 96
+        position = default_position(monitor_service.primary().work_area, metrics.pet_size, margin)
     else:
-        position = monitor_service.recover_position(settings.position, _BASE_PET_SIZE)
+        position = monitor_service.recover_position(settings.position, metrics.pet_size)
     walking = settings.walking
     return PetState(
         position=position,
@@ -95,9 +105,15 @@ def default_window_factory(
     if not enable_per_monitor_dpi_awareness():
         raise RuntimeError("Per-monitor DPI awareness could not be confirmed")
     monitor_service.refresh()
-    controller = PetController(_state_from_settings(settings, monitor_service))
     root = tk.Tk()
     try:
+        controller = PetController(
+            _state_from_settings(
+                settings,
+                monitor_service,
+                metrics_for_dpi(realized_dpi(root)),
+            )
+        )
         sprite_cache = SpriteCache(tk.PhotoImage)
         return PetWindow(
             root,

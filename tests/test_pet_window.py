@@ -326,6 +326,25 @@ class PetWindowTests(unittest.TestCase):
         window.run()
         self.assertEqual(1, root.mainloop_calls)
 
+    def test_close_can_retry_after_dpi_restore_failure_before_destroying_root(self) -> None:
+        window, root, _, _, _, _, watcher = self.make_window()
+        attempts = 0
+
+        def fail_once() -> None:
+            nonlocal attempts
+            attempts += 1
+            if attempts == 1:
+                raise OSError("restore failed")
+
+        watcher.close = fail_once
+        with self.assertRaisesRegex(OSError, "restore failed"):
+            window.close()
+        self.assertEqual(0, root.destroy_calls)
+
+        window.close()
+        self.assertEqual(2, attempts)
+        self.assertEqual(1, root.destroy_calls)
+
     def test_callback_exception_stops_animation_and_shows_only_one_error(self) -> None:
         window, root, controller, sprite_cache, _, _, _ = self.make_window(pose=Pose.REACT)
         with patch("mikan_pet.ui.pet_window.messagebox.showerror") as showerror:

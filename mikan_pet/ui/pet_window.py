@@ -508,5 +508,9 @@ class PetWindow:
         if self._after_id is not None:
             self.root.after_cancel(self._after_id)
             self._after_id = None
-        self.dpi_watcher.close()
+        try:
+            self.dpi_watcher.close()
+        except Exception:
+            self._closing = False
+            raise
         self.root.destroy()

@@ -12,8 +12,8 @@ class GestureResult(str, Enum):
 
 
 def _validate_dpi(dpi: int) -> None:
-    if dpi <= 0:
-        raise ValueError("dpi must be positive")
+    if isinstance(dpi, bool) or not isinstance(dpi, int) or dpi <= 0:
+        raise ValueError("dpi must be a positive integer")
 
 
 def _round_half_up(value: int, numerator: int, denominator: int) -> int:

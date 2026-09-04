@@ -77,6 +77,16 @@ class GestureAndLayoutTests(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     position_from_pointer(Point(1, 1), Point(1, 1), dpi)
 
+    def test_fractional_and_bool_dpi_are_rejected_by_all_dpi_helpers(self) -> None:
+        for dpi in (96.5, True):
+            with self.subTest(dpi=dpi):
+                with self.assertRaises(ValueError):
+                    metrics_for_dpi(dpi)
+                with self.assertRaises(ValueError):
+                    drag_offset_to_logical(Point(1, 1), dpi)
+                with self.assertRaises(ValueError):
+                    position_from_pointer(Point(1, 1), Point(1, 1), dpi)
+
     def test_release_only_reports_a_result_once_and_unpressed_moves_are_safe(self) -> None:
         gesture = PointerGesture(threshold=5)
         self.assertFalse(gesture.move(Point(1, 1)))
@@ -99,6 +109,17 @@ class GestureAndLayoutTests(unittest.TestCase):
         self.assertEqual(pet, layout.pet_screen_origin)
         self.assertEqual(Point(708, 480), layout.root_origin)
         self.assertEqual(WorkArea(42, 120, 2838, 1560), safe_pet_work_area(WorkArea(0, 0, 2880, 1560), True, metrics))
+
+    def test_tiny_expanded_work_area_falls_back_to_a_valid_clamp_anchor(self) -> None:
+        original = WorkArea(0, 0, 40, 60)
+        safe = safe_pet_work_area(original, True, metrics_for_dpi(96))
+        self.assertEqual(WorkArea(28, 60, 28, 60), safe)
+        self.assertLessEqual(safe.left, safe.right)
+        self.assertLessEqual(safe.top, safe.bottom)
+        self.assertGreaterEqual(safe.left, original.left)
+        self.assertGreaterEqual(safe.top, original.top)
+        self.assertLessEqual(safe.right, original.right)
+        self.assertLessEqual(safe.bottom, original.bottom)
 
 
 if __name__ == "__main__":

@@ -46,8 +46,8 @@ def _scale_point(point: Point, dpi: int) -> Point:
 
 
 def metrics_for_dpi(dpi: int) -> DpiMetrics:
-    if dpi <= 0:
-        raise ValueError("dpi must be positive")
+    if isinstance(dpi, bool) or not isinstance(dpi, int) or dpi <= 0:
+        raise ValueError("dpi must be a positive integer")
     return DpiMetrics(
         dpi=dpi,
         pixel_scale=max(1, _scale(BASE_PIXEL_SCALE, dpi)),
@@ -69,14 +69,18 @@ def calculate_window_layout(position: Point, controls_visible: bool, metrics: Dp
 
 
 def safe_pet_work_area(work_area: WorkArea, controls_visible: bool, metrics: DpiMetrics) -> WorkArea:
+    """Reserve expanded controls, collapsing to a valid clamp anchor if needed."""
     if not controls_visible:
         return work_area
     left_inset = metrics.expanded_pet_offset.x
     top_inset = metrics.expanded_pet_offset.y
     right_inset = metrics.expanded_size.width - left_inset - metrics.pet_size.width
+    safe_left = min(work_area.right, work_area.left + left_inset)
+    safe_top = min(work_area.bottom, work_area.top + top_inset)
+    safe_right = max(safe_left, work_area.right - right_inset)
     return WorkArea(
-        work_area.left + left_inset,
-        work_area.top + top_inset,
-        work_area.right - right_inset,
+        safe_left,
+        safe_top,
+        safe_right,
         work_area.bottom,
     )

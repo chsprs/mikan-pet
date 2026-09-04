@@ -7,6 +7,10 @@ from typing import Protocol
 ERROR_ALREADY_EXISTS = 183
 
 
+class SingleInstanceAlreadyRunningError(RuntimeError):
+    """Raised when a named singleton is already owned by another process."""
+
+
 class MutexBackend(Protocol):
     def create_mutex(self, name: str) -> object: ...
 
@@ -60,7 +64,10 @@ class SingleInstance:
             self._backend.close_handle(handle)
 
     def __enter__(self) -> "SingleInstance":
-        self.acquire()
+        if not self.acquire():
+            raise SingleInstanceAlreadyRunningError(
+                f"another instance already owns {self._name!r}"
+            )
         return self
 
     def __exit__(self, exc_type: object, exc_value: object, traceback: object) -> None:

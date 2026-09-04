@@ -1,7 +1,11 @@
 import unittest
 
 from mikan_pet.services.media_keys import KEYEVENTF_KEYUP, MediaAction, MediaKeyService
-from mikan_pet.services.singleton import ERROR_ALREADY_EXISTS, SingleInstance
+from mikan_pet.services.singleton import (
+    ERROR_ALREADY_EXISTS,
+    SingleInstance,
+    SingleInstanceAlreadyRunningError,
+)
 
 
 class FakeMediaBackend:
@@ -70,6 +74,15 @@ class WindowsServiceTests(unittest.TestCase):
         self.assertTrue(guard.acquire())
         self.assertTrue(guard.acquire())
         guard.release()
+        self.assertEqual([backend.handle], backend.closed)
+
+    def test_duplicate_mutex_rejects_context_body_and_closes_once(self) -> None:
+        backend = FakeMutexBackend(ERROR_ALREADY_EXISTS)
+        entered = False
+        with self.assertRaises(SingleInstanceAlreadyRunningError):
+            with SingleInstance("Local\\MikanPet", backend):
+                entered = True
+        self.assertFalse(entered)
         self.assertEqual([backend.handle], backend.closed)
 
 

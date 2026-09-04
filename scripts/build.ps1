@@ -31,17 +31,29 @@ function Invoke-Checked([string]$FilePath, [string[]]$Arguments) {
 }
 
 function Find-Iscc {
-    $candidates = @(@(
+    $candidates = @(
         (Get-Command ISCC.exe -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source -ErrorAction SilentlyContinue),
         'C:\Program Files\Inno Setup 7\ISCC.exe',
         'C:\Program Files (x86)\Inno Setup 6\ISCC.exe',
         (Join-Path $env:LOCALAPPDATA 'Programs\Inno Setup 7\ISCC.exe'),
         (Join-Path $env:LOCALAPPDATA 'Programs\Inno Setup 6\ISCC.exe')
-    ) | Where-Object { $_ -and (Test-Path -LiteralPath $_) })
-    if ($candidates.Count -ne 1) {
-        throw "Expected exactly one usable ISCC.exe, found $($candidates.Count)."
+    )
+    $uniqueCandidates = [Collections.Generic.List[string]]::new()
+    foreach ($candidate in $candidates) {
+        if ($candidate -and (Test-Path -LiteralPath $candidate)) {
+            $resolved = (Resolve-Path -LiteralPath $candidate).Path
+            if (-not $uniqueCandidates.Exists([Predicate[string]] {
+                param($existing)
+                [string]::Equals($existing, $resolved, [StringComparison]::OrdinalIgnoreCase)
+            })) {
+                $uniqueCandidates.Add($resolved)
+            }
+        }
     }
-    return $candidates[0]
+    if ($uniqueCandidates.Count -ne 1) {
+        throw "Expected exactly one usable ISCC.exe, found $($uniqueCandidates.Count)."
+    }
+    return $uniqueCandidates[0]
 }
 
 Push-Location $ProjectRoot

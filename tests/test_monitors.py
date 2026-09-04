@@ -1,5 +1,6 @@
 import unittest
 from unittest.mock import Mock
+from unittest.mock import call
 
 from mikan_pet.core.types import Point, Size, WorkArea
 from mikan_pet.services.monitors import (
@@ -54,7 +55,7 @@ class MonitorGeometryTests(unittest.TestCase):
 
     def test_dpi_awareness_falls_back_to_legacy_per_monitor(self) -> None:
         backend = Mock()
-        backend.is_per_monitor.side_effect = [False, True]
+        backend.is_per_monitor.side_effect = [False, False, True]
         backend.set_per_monitor_v2.return_value = False
         backend.set_per_monitor_legacy.return_value = True
         result = enable_per_monitor_dpi_awareness(backend)
@@ -69,6 +70,17 @@ class MonitorGeometryTests(unittest.TestCase):
         backend.set_per_monitor_legacy.return_value = True
 
         self.assertFalse(enable_per_monitor_dpi_awareness(backend))
+
+    def test_dpi_queries_after_failed_v2_before_using_legacy_fallback(self) -> None:
+        backend = Mock()
+        backend.is_per_monitor.side_effect = [False, True]
+        backend.set_per_monitor_v2.return_value = False
+
+        self.assertTrue(enable_per_monitor_dpi_awareness(backend))
+        self.assertEqual(
+            [call.is_per_monitor(), call.set_per_monitor_v2(), call.is_per_monitor()],
+            backend.mock_calls,
+        )
 
     def test_drag_monitor_sequence_handles_adjacent_gap_and_negative_coordinates(self) -> None:
         gap_monitor = MonitorInfo("DISPLAY3", WorkArea(3000, 0, 4280, 984), False)
@@ -116,6 +128,17 @@ class MonitorBackendTests(unittest.TestCase):
 
         with self.assertRaisesRegex(RuntimeError, "no monitors"):
             MonitorService(backend).refresh()
+
+    def test_empty_refresh_clears_monitors_from_successful_previous_refresh(self) -> None:
+        backend = Mock()
+        backend.enumerate.side_effect = [[MONITOR_1], []]
+        service = MonitorService(backend)
+        service.refresh()
+
+        with self.assertRaisesRegex(RuntimeError, "no monitors"):
+            service.refresh()
+        with self.assertRaisesRegex(ValueError, "at least one monitor"):
+            service.primary()
 
 
 class WindowsDpiAwarenessBackendTests(unittest.TestCase):

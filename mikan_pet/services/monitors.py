@@ -168,7 +168,8 @@ def enable_per_monitor_dpi_awareness(backend: DpiAwarenessBackend | None = None)
     dpi_backend = backend or WindowsDpiAwarenessBackend()
     if dpi_backend.is_per_monitor():
         return True
-    if dpi_backend.set_per_monitor_v2() and dpi_backend.is_per_monitor():
+    dpi_backend.set_per_monitor_v2()
+    if dpi_backend.is_per_monitor():
         return True
     dpi_backend.set_per_monitor_legacy()
     return dpi_backend.is_per_monitor()
@@ -181,9 +182,9 @@ class MonitorService:
 
     def refresh(self) -> list[MonitorInfo]:
         monitors = list(self._backend.enumerate())
+        self._monitors = monitors
         if not monitors:
             raise RuntimeError("Windows returned no monitors")
-        self._monitors = monitors
         return self._monitors
 
     def primary(self) -> MonitorInfo:

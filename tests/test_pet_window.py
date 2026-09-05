@@ -404,6 +404,31 @@ class PetWindowTests(unittest.TestCase):
         showinfo.assert_called_once()
         self.assertIn("terbaru", showinfo.call_args.args[1])
 
+    def test_button_press_and_release_animation(self) -> None:
+        window, root, controller, _, media_service, _, _ = self.make_window()
+        initial_face_coords = window.canvas.items_with_tag("btn_face_play_pause")[0][0]
+        initial_face_fill = window.canvas.items_with_tag("btn_face_play_pause")[0][1]["fill"]
+
+        window._on_button_press(MediaAction.PLAY_PAUSE)
+        pressed_face_coords = window.canvas.items_with_tag("btn_face_play_pause")[0][0]
+        pressed_face_fill = window.canvas.items_with_tag("btn_face_play_pause")[0][1]["fill"]
+        self.assertNotEqual(initial_face_coords, pressed_face_coords)
+        self.assertNotEqual(initial_face_fill, pressed_face_fill)
+        self.assertGreater(pressed_face_coords[0], initial_face_coords[0])
+        self.assertGreater(pressed_face_coords[1], initial_face_coords[1])
+
+        window._on_button_release(MediaAction.PLAY_PAUSE)
+        self.assertEqual([MediaAction.PLAY_PAUSE], media_service.actions)
+        self.assertEqual(Pose.REACT, controller.state.pose)
+
+        for delay, cb, _ in list(root.after_calls):
+            cb()
+        restored_face_coords = window.canvas.items_with_tag("btn_face_play_pause")[0][0]
+        restored_face_fill = window.canvas.items_with_tag("btn_face_play_pause")[0][1]["fill"]
+        self.assertEqual(initial_face_coords, restored_face_coords)
+        self.assertEqual(initial_face_fill, restored_face_fill)
+
+
 
 
 

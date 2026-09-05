@@ -33,9 +33,11 @@ from mikan_pet.ui.sprite_cache import SpriteCache
 
 TRANSPARENT_COLOR = "#FF00FF"
 CREAM = "#FFF2D8"
+CREAM_PRESSED = "#E8D8B8"
 DARK = "#5A3626"
 BROWN = "#9B5A37"
 MIKAN_ORANGE = "#E78145"
+ORANGE_PRESSED = "#D06B30"
 TICK_MS = 50
 MAX_TICK_MS = 200
 
@@ -109,6 +111,7 @@ class PetWindow:
         self._image_ref: object | None = None
         self._last_track_title = ""
         self._track_visible_until_ns = 0
+        self._button_base_coords: dict[MediaAction, tuple[int, int, int, int, str, str]] = {}
 
         configure_pet_root(root, TRANSPARENT_COLOR, controller.state.always_on_top)
         self.dpi_watcher = dpi_watcher_factory(root, self._on_dpi_changed)
@@ -142,12 +145,14 @@ class PetWindow:
     def _tags(self, action: MediaAction) -> tuple[str, str]:
         return "controls", f"media_{action.value}"
 
-    def _draw_control(self, x: int, action: MediaAction, glyph: str, fill: str) -> None:
+    def _draw_control(
+        self, x: int, action: MediaAction, glyph: str, fill: str, pressed_fill: str
+    ) -> None:
         sx = self._scale(x)
         sy = self._scale(12)
         face_size = self._scale(44)
         offset = self._scale(4)
-        tags = self._tags(action)
+        self._button_base_coords[action] = (sx, sy, face_size, offset, fill, pressed_fill)
         self.canvas.create_rectangle(
             sx + offset,
             sy + offset,
@@ -156,7 +161,7 @@ class PetWindow:
             fill=BROWN,
             outline=DARK,
             width=max(1, self._scale(2)),
-            tags=tags,
+            tags=("controls", f"media_{action.value}", f"btn_shadow_{action.value}"),
         )
         self.canvas.create_rectangle(
             sx,
@@ -166,7 +171,7 @@ class PetWindow:
             fill=fill,
             outline=DARK,
             width=max(1, self._scale(2)),
-            tags=tags,
+            tags=("controls", f"media_{action.value}", f"btn_face_{action.value}"),
         )
         self.canvas.create_text(
             sx + self._scale(22),
@@ -174,14 +179,15 @@ class PetWindow:
             text=glyph,
             fill=DARK,
             font="TkFixedFont",
-            tags=tags,
+            tags=("controls", f"media_{action.value}", f"btn_text_{action.value}"),
         )
 
     def _build_canvas_items(self) -> None:
         self.canvas.delete("all")
-        self._draw_control(16, MediaAction.PREVIOUS, "|<", CREAM)
-        self._draw_control(76, MediaAction.PLAY_PAUSE, ">", MIKAN_ORANGE)
-        self._draw_control(136, MediaAction.NEXT, ">|", CREAM)
+        self._button_base_coords.clear()
+        self._draw_control(16, MediaAction.PREVIOUS, "|<", CREAM, CREAM_PRESSED)
+        self._draw_control(76, MediaAction.PLAY_PAUSE, ">", MIKAN_ORANGE, ORANGE_PRESSED)
+        self._draw_control(136, MediaAction.NEXT, ">|", CREAM, CREAM_PRESSED)
         connector_tags = ("controls", "connector")
         self.canvas.create_rectangle(
             self._scale(96),
@@ -246,8 +252,13 @@ class PetWindow:
             tag = f"media_{action.value}"
             self.canvas.tag_bind(
                 tag,
+                "<ButtonPress-1>",
+                lambda _event, selected=action: self._on_button_press(selected),
+            )
+            self.canvas.tag_bind(
+                tag,
                 "<ButtonRelease-1>",
-                lambda _event, selected=action: self._on_media(selected),
+                lambda _event, selected=action: self._on_button_release(selected),
             )
 
     def _is_walking(self) -> bool:
@@ -441,6 +452,53 @@ class PetWindow:
             self._redraw_current_pose()
         self._apply_window_layout()
         self._settings_changed()
+
+    def _animate_button_press(self, action: MediaAction) -> None:
+        base = getattr(self, "_button_base_coords", {}).get(action)
+        if not base:
+            return
+        sx, sy, face_size, offset, _, pressed_fill = base
+        dx = max(1, offset // 2)
+        dy = max(1, offset // 2)
+        self.canvas.coords(
+            f"btn_face_{action.value}",
+            sx + dx,
+            sy + dy,
+            sx + face_size + dx,
+            sy + face_size + dy,
+        )
+        self.canvas.coords(
+            f"btn_text_{action.value}",
+            sx + self._scale(22) + dx,
+            sy + self._scale(22) + dy,
+        )
+        self.canvas.itemconfigure(f"btn_face_{action.value}", fill=pressed_fill)
+
+    def _animate_button_release(self, action: MediaAction) -> None:
+        base = getattr(self, "_button_base_coords", {}).get(action)
+        if not base:
+            return
+        sx, sy, face_size, _, normal_fill, _ = base
+        self.canvas.coords(
+            f"btn_face_{action.value}",
+            sx,
+            sy,
+            sx + face_size,
+            sy + face_size,
+        )
+        self.canvas.coords(
+            f"btn_text_{action.value}",
+            sx + self._scale(22),
+            sy + self._scale(22),
+        )
+        self.canvas.itemconfigure(f"btn_face_{action.value}", fill=normal_fill)
+
+    def _on_button_press(self, action: MediaAction) -> None:
+        self._animate_button_press(action)
+
+    def _on_button_release(self, action: MediaAction) -> None:
+        self._on_media(action)
+        self.root.after(120, lambda: self._animate_button_release(action))
 
     def _on_media(self, action: MediaAction) -> None:
         self.media_service.send(action)

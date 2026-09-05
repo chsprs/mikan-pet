@@ -4,6 +4,7 @@ from io import StringIO
 from unittest.mock import Mock, patch
 
 from mikan_pet.app import (
+    VERSION,
     MikanPetApplication,
     default_window_factory,
     main,
@@ -346,7 +347,7 @@ class AppTests(unittest.TestCase):
         with redirect_stdout(output), patch("mikan_pet.app.create_application") as create_application:
             self.assertEqual(0, main(["--version"]))
 
-        self.assertEqual("0.1.0\n", output.getvalue())
+        self.assertEqual(f"{VERSION}\n", output.getvalue())
         create_application.assert_not_called()
 
     def test_main_rejects_unknown_or_mixed_arguments(self) -> None:

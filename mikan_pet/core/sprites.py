@@ -454,12 +454,26 @@ def rasterize_frame(skin: SkinId, pose: Pose, frame_index: int, direction: Direc
     frame = FRAMES[pose][frame_index % frame_count(pose)]
     pixels: list[list[str | None]] = [[None] * FRAME_WIDTH for _ in range(FRAME_HEIGHT)]
     palette = SKINS[skin].palette
-    for rect in frame.rectangles:
+    # Separate body rectangles and floating overlay (Z letters for sleep)
+    body_rects = [r for r in frame.rectangles if r.role is not ColorRole.PATCH_TWO] if pose is Pose.SLEEP else frame.rectangles
+    z_rects = [r for r in frame.rectangles if r.role is ColorRole.PATCH_TWO] if pose is Pose.SLEEP else ()
+
+    for rect in body_rects:
         color = palette[rect.role]
         for y in range(rect.y, rect.y + rect.height):
             for x in range(rect.x, rect.x + rect.width):
                 pixels[y][x] = color
-    rows = tuple(tuple(row) for row in pixels)
+
     if direction is Direction.LEFT:
-        rows = tuple(tuple(reversed(row)) for row in rows)
-    return rows
+        pixels = [list(reversed(row)) for row in pixels]
+
+    # Draw Z letters without horizontal flip so they never appear backwards as 'S'
+    for rect in z_rects:
+        color = palette[rect.role]
+        # In left direction, place Z offset relative to cat's head
+        rx = (FRAME_WIDTH - (rect.x + rect.width)) if direction is Direction.LEFT else rect.x
+        for y in range(rect.y, rect.y + rect.height):
+            for x in range(rx, rx + rect.width):
+                pixels[y][x] = color
+
+    return tuple(tuple(row) for row in pixels)

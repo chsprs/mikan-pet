@@ -83,14 +83,13 @@ if ($LASTEXITCODE -ne 0) {
     throw "GitHub Release $tag tidak dapat diverifikasi."
 }
 $requiredAssets = @(
-    'MikanPet-Setup-x64.exe',
-    'MikanPet-portable-x64.zip',
-    'MikanPet-Setup-arm64.exe',
-    'MikanPet-portable-arm64.zip',
-    'SHA256SUMS.txt'
+    'MikanPet-Setup-x64.exe'
 )
 $missingAssets = @($requiredAssets | Where-Object { $_ -notin $assetNames })
 if ($missingAssets.Count -gt 0) {
     throw "Rilis $tag tidak lengkap. Aset hilang: $($missingAssets -join ', ')"
 }
-Write-Host "==> Rilis $tag selesai, lengkap, dan siap diunduh pengguna via auto-updater!"
+if ($assetNames.Count -ne 1) {
+    throw "Rilis $tag melanggar kebijakan single-asset: ditemukan $($assetNames.Count) aset ($($assetNames -join ', '))"
+}
+Write-Host "==> Rilis $tag selesai, lengkap dengan single-asset MikanPet-Setup-x64.exe!"

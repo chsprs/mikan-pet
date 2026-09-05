@@ -1,119 +1,161 @@
 ---
 name: mikan-release
-description: Use when bumping versions, pushing updates to GitHub, releasing new Windows binaries, or managing the auto-update pipeline for Mikan Pet
+description: Use for an explicitly authorized Mikan Pet version bump, GitHub push, or Windows x64 installer release, or for auditing that single-asset release and its updater path. Do not use for ordinary local edits that are not being published.
 ---
 
-# Mikan Pet Release & GitHub Push Workflow
+# Mikan Pet Release
 
-## Overview
-Panduan operasional standar untuk mempublikasikan pembaruan Mikan Pet ke GitHub, membangun binary Windows (Installer & Portable), serta memastikan pipeline auto-updater in-place berfungsi tanpa kendala bagi pengguna akhir.
+Panduan untuk merilis Mikan Pet sebagai satu installer Windows x64 di GitHub dan memastikan jalur update aplikasi sesuai dengan kebijakan tersebut.
 
-## When to Use
-- Mengirim fitur baru, skin baru, atau bugfix ke repositori GitHub.
-- Merilis versi baru aplikasi (`vX.Y.Z`) agar dapat diunduh oleh pengguna.
-- Memastikan pembaruan otomatis (in-place auto-updater) mendeteksi rilis baru.
+## Kebijakan Distribusi
 
-**When NOT to Use:**
-- Eksperimen lokal yang belum siap rilis (gunakan branch kerja biasa tanpa tag).
-- Perubahan kecil pada dokumentasi yang tidak memerlukan bump versi aplikasi.
+GitHub Release publik hanya membutuhkan satu aset:
 
----
-
-## Quick Reference
-
-| Kebutuhan | Perintah / Tindakan |
-|---|---|
-| **Rilis Otomatis (Rekomendasi)** | `powershell -ExecutionPolicy Bypass -File scripts/release.ps1 -Version "0.1.6" -Message "feat: deskripsi perubahan"` |
-| **Pemeriksaan Tes Manual** | `.\.venv\Scripts\python.exe -m unittest discover -s tests` |
-| **Uji Build & Smoke Test GUI** | `powershell -ExecutionPolicy Bypass -File scripts/build.ps1 -Python ".\.venv\Scripts\python.exe" -SkipInstaller` |
-| **Cek Status CI/CD GitHub** | `gh run list --limit 3` atau `gh run watch <run_id>` |
-| **Verifikasi Catatan Rilis** | `gh release view vX.Y.Z` |
-
----
-
-## 4 File Wajib Sinkronisasi Versi
-
-Setiap kali versi aplikasi dinaikkan, 4 berkas berikut **wajib sama persis**:
-
-1. [pyproject.toml](file:///d:/BACKUP/Documents/aplikasi%20AI/PET/pyproject.toml) -> `version = "X.Y.Z"`
-2. [mikan_pet/__init__.py](file:///d:/BACKUP/Documents/aplikasi%20AI/PET/mikan_pet/__init__.py) -> `__version__ = "X.Y.Z"`
-3. [mikan_pet/app.py](file:///d:/BACKUP/Documents/aplikasi%20AI/PET/mikan_pet/app.py) -> `VERSION = "X.Y.Z"`
-4. [installer/MikanPet.iss](file:///d:/BACKUP/Documents/aplikasi%20AI/PET/installer/MikanPet.iss) -> `#define MyAppVersion "X.Y.Z"`
-
-*(Catatan: Script `scripts/release.ps1` memperbarui keempat file ini secara otomatis).*
-
----
-
-## Alur Rilis Step-by-Step (The Iron Pipeline)
-
-```
-1. Verifikasi Kode & Tes (169/169 Lolos)
-         │
-         ▼
-2. Sinkronisasi Versi (4 File di atas)
-         │
-         ▼
-3. Komit & Buat Tag Git (vX.Y.Z)
-         │
-         ▼
-4. Push ke GitHub (main + tags)
-         │
-         ▼
-5. Tunggu GitHub Actions Selesai (Status OK, ~2 menit)
-         │
-         ▼
-6. Verifikasi Aset & Catatan Rilis di GitHub
-         │
-         ▼
-7. Verifikasi Auto-Updater dari Aplikasi Desktop
+```text
+MikanPet-Setup-x64.exe
 ```
 
----
+Jangan menjadikan ARM64, portable ZIP, `SHA256SUMS.txt`, atau provenance attestation sebagai syarat release maupun aset tambahan. Bila workflow, script release, atau updater lama masih menghasilkan atau mencari aset tersebut, selaraskan implementasinya dengan kebijakan ini sebelum mengumumkan release.
 
-## Cara Kerja Auto-Updater Mikan Pet
+## Batas Otorisasi
 
-1. **Pengecekan Versi:**
-   - Aplikasi memanggil GitHub API: `GET https://api.github.com/repos/chsprs/mikan-pet/releases/latest`.
-   - Membandingkan `release.version` dengan `__version__` lokal via tuple integer (`(0, 1, 5) > (0, 1, 4)`).
-2. **Pengunduhan di Latar Belakang:**
-   - Mengunduh berkas `MikanPet-portable-x64.zip` ke folder sementara `%TEMP%\mikan_update_<version>`.
-   - Menampilkan notifikasi info ke pengguna bahwa download sedang berlangsung.
-3. **In-Place Replacement:**
-   - Menulis skrip `_mikan_update.cmd`.
-   - Menghentikan proses `MikanPet.exe` lama (`taskkill`).
-   - Menyalin berkas baru dengan `xcopy /E /I /Y /Q /H /R`.
-   - Menjalankan kembali executable baru dengan flag direktori kerja: `start "" /D "{install_dir}" "{target_exe}"`.
-   - Menghapus skrip sementara secara bersih.
+- Audit, pemeriksaan status, dan validasi lokal bersifat read-only.
+- Hanya commit, push, tag, membuat/mengubah GitHub Release, atau mengatur GitHub secret bila pengguna secara eksplisit meminta publikasi atau perubahan eksternal tersebut.
+- Jangan menghapus atau memindahkan tag yang sudah dipush tanpa izin eksplisit. Untuk release gagal, perbaiki di `main` dan gunakan versi patch berikutnya.
+- Jangan mengklaim binary ditandatangani jika certificate secrets tidak tersedia.
 
----
+## Sumber Kebenaran
 
-## Tabel Rasionalisasi & Kesalahan Umum
+- `scripts/release.ps1`: bump versi, tes, commit, tag, push, menunggu workflow, lalu memeriksa aset release.
+- `scripts/build.ps1`: build installer x64 lokal dan signing opsional.
+- `.github/workflows/release.yml`: build, smoke test, dan publish installer x64 tunggal.
+- File versi yang harus sama:
+  - `pyproject.toml` — `version = "X.Y.Z"`
+  - `mikan_pet/__init__.py` — `__version__ = "X.Y.Z"`
+  - `mikan_pet/app.py` — `VERSION = "X.Y.Z"`
+  - `installer/MikanPet.iss` — `#define MyAppVersion "X.Y.Z"`
 
-| Alasan / Godaan | Realita & Bahaya | Solusi Wajib |
-|---|---|---|
-| *"Saya push langsung tanpa cek tes, kodenya sepele"* | Kode sepele sering memecahkan regresi sprite atau updater. | Selalu jalankan tes unit sebelum push. |
-| *"Saya sudah push, jadi saya beritahu user rilis sudah siap"* | GitHub Actions butuh 1-2 menit untuk build Windows. Jika user coba update seketika, rilis belum ada dan updater menolak. | **Pantau CI sampai berstatus [ok]** sebelum mengonfirmasi ke pengguna. |
-| *"Lupa push tag (`git push` tanpa `--tags`)"* | Workflow release GitHub Actions hanya terpicu oleh tag `v*`. Tanpa tag, rilis tidak terbuat. | Selalu gunakan `git push origin main --tags`. |
-| *"Catatan rilis di GitHub kosong"* | GitHub `generate_release_notes` default butuh Pull Request. | Pastikan workflow `.github/workflows/release.yml` menyertakan step pembuatan catatan komit (`body_path: release_notes.md`). |
+Jangan gunakan jumlah tes, durasi workflow, atau nomor versi contoh sebagai syarat tetap; semuanya dapat berubah.
 
----
+## Alur Rilis
 
-## Red Flags - STOP dan Verifikasi!
+### 1. Preflight
 
-- Memberi tahu pengguna "pembaruan sudah bisa diunduh" padahal workflow GitHub Actions masih kuning/running.
-- `gh release view vX.Y.Z` menghasilkan output "release not found".
-- Tag di git lokal belum dipush ke remote origin.
-- Salah satu dari 4 file versi tidak sinkron.
+Pastikan worktree hanya berisi perubahan yang memang akan dirilis:
 
----
+```powershell
+git status --short --branch
+git fetch --tags origin
+git tag --list "vX.Y.Z"
+git ls-remote --tags origin "refs/tags/vX.Y.Z"
+gh release view "vX.Y.Z"
+```
 
-## Verification Checklist
+`scripts/release.ps1` memakai `git add -A`, sehingga file tidak terkait atau untracked ikut masuk ke commit. Berhenti dan pisahkan perubahan jika scope belum bersih.
 
-Sebelum menyatakan rilis selesai ke pengguna:
-- [ ] Semua unit test lolos di lokal.
-- [ ] Empat file versi sinkron di angka versi yang sama.
-- [ ] Komit dan tag `vX.Y.Z` sudah ada di GitHub (`git push origin main --tags`).
-- [ ] Workflow GitHub Actions berstatus hijau / `[ok]` (`gh run list`).
-- [ ] Halaman rilis GitHub memuat installer dan portable ZIP untuk x64 serta ARM64, plus `SHA256SUMS.txt`.
-- [ ] Catatan rilis di GitHub memuat ringkasan fitur & komit yang jelas.
-- [ ] Provenance attestation tersedia dan smoke install/launch/uninstall kedua arsitektur berstatus hijau.
+Pilih versi SemVer baru dan pastikan tag/release itu belum ada. Jalankan tes dan build installer x64 bila perubahan menyentuh runtime, packaging, updater, aset, atau startup:
+
+```powershell
+.\.venv\Scripts\python.exe -m unittest discover -s tests
+powershell -ExecutionPolicy Bypass -File scripts/build.ps1 -Python ".\.venv\Scripts\python.exe" -Architecture x64
+```
+
+### 2. Selaraskan Pipeline Sebelum Publish
+
+Sebelum rilis, pastikan semua bagian berikut hanya merujuk `MikanPet-Setup-x64.exe`:
+
+- `scripts/release.ps1` memverifikasi satu aset itu saja.
+- Workflow membangun dan mengunggah installer x64, bukan matriks ARM64 atau portable ZIP.
+- Release GitHub tidak mengunggah checksum atau aset lain.
+- Updater tidak mencari portable ZIP/ARM64 dan tidak mencoba ekstraksi ZIP.
+
+Perubahan kebijakan aset bukan izin otomatis untuk memodifikasi pipeline atau mempublikasikan release; lakukan perubahan itu hanya sesuai permintaan pengguna.
+
+### 3. Publikasikan
+
+Gunakan script resmi setelah implementasi selaras dengan kebijakan satu aset:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/release.ps1 -Version "X.Y.Z" -Message "feat: ringkasan perubahan"
+```
+
+Jangan menjalankan perintah ini untuk audit saja: perintah tersebut mengubah file, membuat commit/tag, dan mendorongnya ke GitHub.
+
+### 4. Verifikasi GitHub Actions
+
+Cocokkan run dengan commit tag; jangan hanya mengambil run terbaru jika ada workflow lain yang berjalan:
+
+```powershell
+gh run list --workflow release.yml --limit 5
+gh run view <run_id> --json status,conclusion,url,headSha,event,jobs
+git rev-list -n 1 "vX.Y.Z"
+```
+
+Release baru siap setelah job build, smoke install-launch-uninstall x64 (bila dikonfigurasi), dan publish release selesai hijau.
+
+### 5. Verifikasi Release dan Updater
+
+```powershell
+gh release view "vX.Y.Z" --json tagName,isDraft,isPrerelease,url,body,assets
+gh api repos/chsprs/mikan-pet/releases/latest --jq .tag_name
+git status --short --branch
+git ls-remote origin refs/heads/main "refs/tags/vX.Y.Z"
+```
+
+Release wajib non-draft, non-prerelease, menjadi hasil endpoint `/releases/latest`, dan memiliki tepat satu aset bernama `MikanPet-Setup-x64.exe`.
+
+## Kontrak Auto-Updater
+
+- Updater memanggil `GET https://api.github.com/repos/chsprs/mikan-pet/releases/latest`.
+- Update hanya mendukung Windows x64 dan mengunduh `MikanPet-Setup-x64.exe`.
+- Jika respons GitHub menyediakan digest SHA-256 untuk installer, verifikasi installer sebelum dijalankan.
+- Setelah pengguna menyetujui, updater menutup aplikasi bila perlu, menjalankan installer x64 secara aman, lalu membiarkan installer menyelesaikan pembaruan.
+- Jangan mempertahankan logika pemilihan ARM64, unduh portable ZIP, atau ekstraksi ZIP.
+
+Tag tanpa GitHub Release tidak akan dilihat oleh updater karena updater mengikuti `/releases/latest`, bukan daftar tag Git.
+
+## Signing Windows
+
+Signing bersifat opsional dan aktif hanya ketika kedua GitHub Actions secret ini tersedia:
+
+- `WINDOWS_CERT_BASE64`
+- `WINDOWS_CERT_PASSWORD`
+
+Nama secret dapat diaudit dengan `gh secret list`; nilainya tidak boleh dicetak atau diminta di log. Bila salah satu tidak ada, release dapat tetap diterbitkan sebagai unsigned. Laporkan status tersebut secara jujur dan jangan membuat sertifikat self-signed sebagai pengganti production signing.
+
+## Catatan Rilis dan Release Gagal
+
+- Baca kembali `body` release dari GitHub; keberhasilan action tidak membuktikan catatan rilis sudah lengkap.
+- Gunakan teks ASCII-safe atau UTF-8 tanpa BOM untuk file catatan yang dikonsumsi GitHub Actions.
+- Jika ada tag gagal di antara dua release yang dipublikasikan, generator berbasis tag bisa melewatkan commit. Pastikan catatan mencakup semua perubahan sejak release terakhir yang benar-benar dipublikasikan.
+- Jika tag sudah dipush tetapi workflow gagal, perbaiki penyebab di `main`, naikkan patch version, lalu rilis tag baru. Biarkan tag lama sebagai rekam jejak kecuali pengguna secara eksplisit meminta penghapusan.
+
+## Red Flags
+
+Berhenti dan selidiki jika:
+
+- worktree memuat perubahan atau file untracked di luar scope release;
+- salah satu dari empat file versi tidak sinkron;
+- tag lokal/remote atau GitHub Release untuk versi target sudah ada;
+- run yang dipantau tidak cocok dengan commit tag;
+- build atau smoke test x64 gagal;
+- release tidak muncul di `/releases/latest`;
+- aset release bukan tepat satu `MikanPet-Setup-x64.exe`;
+- updater masih meminta ZIP atau aset ARM64;
+- release diklaim signed tanpa kedua certificate secrets.
+
+## Checklist Selesai
+
+- [ ] Pengguna secara eksplisit mengotorisasi commit/push/release.
+- [ ] Worktree diperiksa dan hanya memuat scope yang disengaja.
+- [ ] Seluruh tes lokal lolos; build installer x64 dijalankan bila relevan.
+- [ ] Empat file versi sinkron dengan tag `vX.Y.Z`.
+- [ ] Pipeline hanya membangun dan mempublikasikan `MikanPet-Setup-x64.exe`.
+- [ ] Commit `main` dan tag ada di remote serta menunjuk commit yang benar.
+- [ ] Run `release.yml` untuk commit itu selesai hijau.
+- [ ] Smoke install-launch-uninstall x64 hijau bila dikonfigurasi.
+- [ ] Release bukan draft/prerelease dan memiliki tepat satu aset installer x64.
+- [ ] Catatan rilis lengkap sejak release terakhir yang dipublikasikan.
+- [ ] Endpoint `/releases/latest` mengembalikan versi baru.
+- [ ] Status signed atau unsigned dilaporkan sesuai fakta.
+- [ ] `git status --short --branch` menunjukkan kondisi akhir yang diharapkan.

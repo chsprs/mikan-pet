@@ -110,6 +110,7 @@ class PetWindow:
         self.frame_index = 0
         self._image_ref: object | None = None
         self._last_track_title = ""
+        self._is_track_playing = False
         self._track_visible_until_ns = 0
         self._button_base_coords: dict[MediaAction, tuple[int, int, int, int, str, str]] = {}
 
@@ -185,27 +186,48 @@ class PetWindow:
     def _build_canvas_items(self) -> None:
         self.canvas.delete("all")
         self._button_base_coords.clear()
-        self._draw_control(16, MediaAction.PREVIOUS, "|<", CREAM, CREAM_PRESSED)
-        self._draw_control(76, MediaAction.PLAY_PAUSE, ">", MIKAN_ORANGE, ORANGE_PRESSED)
-        self._draw_control(136, MediaAction.NEXT, ">|", CREAM, CREAM_PRESSED)
-        connector_tags = ("controls", "connector")
+
+        # Retro capsule background enclosing floating controls
+        capsule_x1 = self._scale(12)
+        capsule_y1 = self._scale(8)
+        capsule_x2 = self._scale(188)
+        capsule_y2 = self._scale(60)
+        capsule_radius = self._scale(8)
         self.canvas.create_rectangle(
-            self._scale(96),
-            self._scale(64),
-            self._scale(100),
-            self._scale(68),
+            capsule_x1,
+            capsule_y1,
+            capsule_x2,
+            capsule_y2,
+            fill="#FFF8EC",
+            outline=DARK,
+            width=max(1, self._scale(2)),
+            tags=("controls", "controls_capsule"),
+        )
+
+        self._draw_control(16, MediaAction.PREVIOUS, "◀◀", CREAM, CREAM_PRESSED)
+        play_glyph = "❚❚" if getattr(self, "_is_track_playing", False) else "▶"
+        self._draw_control(76, MediaAction.PLAY_PAUSE, play_glyph, MIKAN_ORANGE, ORANGE_PRESSED)
+        self._draw_control(136, MediaAction.NEXT, "▶▶", CREAM, CREAM_PRESSED)
+
+        connector_tags = ("controls", "connector")
+        # Thought bubble connection dots to pet
+        self.canvas.create_oval(
+            self._scale(97),
+            self._scale(63),
+            self._scale(103),
+            self._scale(69),
             fill=CREAM,
-            outline=CREAM,
+            outline=DARK,
             width=max(1, self._scale(1)),
             tags=connector_tags,
         )
-        self.canvas.create_rectangle(
+        self.canvas.create_oval(
             self._scale(100),
             self._scale(72),
             self._scale(104),
             self._scale(76),
             fill=CREAM,
-            outline=CREAM,
+            outline=DARK,
             width=max(1, self._scale(1)),
             tags=connector_tags,
         )
@@ -336,10 +358,10 @@ class PetWindow:
         from mikan_pet import __version__
         from mikan_pet.services.updater import (
             DEFAULT_GITHUB_REPO,
-            download_and_extract_update,
+            download_update_installer,
             fetch_latest_release,
             is_newer_version,
-            launch_in_place_updater,
+            launch_installer_updater,
         )
 
         def worker() -> None:
@@ -393,12 +415,12 @@ class PetWindow:
                 if not should_update:
                     return
 
-                if not release.zip_url or not release.zip_sha256:
+                if not release.installer_url:
                     import webbrowser
                     webbrowser.open(release.html_url)
                     messagebox.showwarning(
                         "Mikan Pet - Pembaruan Manual Diperlukan",
-                        "Paket pembaruan otomatis yang aman tidak tersedia.\n"
+                        "Paket installer pembaruan tidak tersedia.\n"
                         "Halaman rilis resmi telah dibuka untuk pembaruan manual.",
                         parent=self.root,
                     )
@@ -407,32 +429,20 @@ class PetWindow:
                 def download_worker() -> None:
                     try:
                         import tempfile
-                        staging_dir = Path(tempfile.gettempdir()) / f"mikan_update_{release.version}"
-                        download_and_extract_update(
-                            release.zip_url,
-                            staging_dir,
-                            expected_sha256=release.zip_sha256,
+                        installer_path = Path(tempfile.gettempdir()) / f"MikanPet-Setup-{release.version}.exe"
+                        download_update_installer(
+                            release.installer_url,
+                            installer_path,
+                            expected_sha256=release.installer_sha256,
                         )
-                        app_dir = Path(sys.executable).resolve().parent
-                        exe_path = app_dir / "MikanPet.exe"
-                        if not exe_path.exists():
-                            self.root.after(
-                                0,
-                                lambda: messagebox.showinfo(
-                                    "Mikan Pet",
-                                    f"Pembaruan v{release.version} berhasil diunduh ke:\n{staging_dir}\n\n(Mode development: silakan build atau salin manual)",
-                                    parent=self.root,
-                                ),
-                            )
-                            return
-                        launch_in_place_updater(staging_dir, app_dir, "MikanPet.exe")
+                        launch_installer_updater(installer_path)
                         self.root.after(0, self.close)
                     except Exception as err:
                         self.root.after(
                             0,
                             lambda: messagebox.showerror(
                                 "Mikan Pet - Gagal Memperbarui",
-                                f"Gagal mengunduh pembaruan:\n{err}",
+                                f"Gagal mengunduh installer pembaruan:\n{err}",
                                 parent=self.root,
                             ),
                         )
@@ -440,7 +450,7 @@ class PetWindow:
                 threading.Thread(target=download_worker, daemon=True).start()
                 messagebox.showinfo(
                     "Mikan Pet - Mengunduh Pembaruan",
-                    f"Pembaruan v{release.version} sedang diunduh di latar belakang.\n\nSetelah selesai, Mikan Pet akan otomatis dimulai ulang.",
+                    f"Installer pembaruan v{release.version} sedang diunduh di latar belakang.\n\nSetelah selesai, installer akan otomatis dijalankan.",
                     parent=self.root,
                 )
 
@@ -650,6 +660,11 @@ class PetWindow:
             self._last_track_title = title_text
             self._track_visible_until_ns = now_ns + 4_000_000_000
 
+        is_playing = bool(getattr(track, "is_playing", False))
+        if is_playing != getattr(self, "_is_track_playing", False):
+            self._is_track_playing = is_playing
+            self.canvas.itemconfigure("btn_text_play_pause", text="❚❚" if is_playing else "▶")
+
         should_show = bool(title_text) and (
             self.controller.state.controls_visible or now_ns < self._track_visible_until_ns
         )
@@ -657,7 +672,7 @@ class PetWindow:
             self.canvas.itemconfigure("track_bubble", state="hidden")
             return
 
-        display_str = f"♪ {title_text}"
+        display_str = f"💿 {title_text}"
         self.canvas.itemconfigure("track_bubble_text", text=display_str, state="normal")
         if self.controller.state.controls_visible:
             bx = self._scale(100)

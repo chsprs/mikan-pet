@@ -1,6 +1,6 @@
 #define MyAppName "Mikan Pet"
 #ifndef MyAppVersion
-  #define MyAppVersion "0.1.10"
+  #define MyAppVersion "0.1.11"
 #endif
 #ifndef MyArchitecture
   #define MyArchitecture "x64"

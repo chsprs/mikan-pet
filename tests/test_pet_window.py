@@ -386,6 +386,37 @@ class PetWindowTests(unittest.TestCase):
         self.assertEqual("normal", bubble_txt[0][1].get("state"))
         self.assertIn("Song A", bubble_txt[0][1].get("text"))
 
+    def test_track_info_bubble_displays_timeline_pin_and_time_range(self) -> None:
+        import time
+        media_info = Mock()
+        media_info.current_track = MediaTrackInfo(
+            title="Song A",
+            artist="Artist B",
+            is_playing=True,
+            position_seconds=83.0,
+            duration_seconds=225.0,
+            updated_at=time.monotonic(),
+        )
+        window, root, controller, *_ = self.make_window(media_info_service=media_info)
+        window._tick()
+        time_txt = window.canvas.items_with_tag("track_bubble_time", kind="text")
+        pin = window.canvas.items_with_tag("track_bubble_pin")
+        bar_bg = window.canvas.items_with_tag("track_bubble_bar_bg", kind="rectangle")
+        bar_fill = window.canvas.items_with_tag("track_bubble_bar_fill", kind="rectangle")
+
+        self.assertTrue(len(time_txt) > 0)
+        self.assertEqual("normal", time_txt[0][1].get("state"))
+        self.assertIn("01:23 / 03:45", time_txt[0][1].get("text"))
+
+        self.assertTrue(len(pin) > 0)
+        self.assertEqual("normal", pin[0][1].get("state"))
+
+        self.assertTrue(len(bar_bg) > 0)
+        self.assertEqual("normal", bar_bg[0][1].get("state"))
+
+        self.assertTrue(len(bar_fill) > 0)
+        self.assertEqual("normal", bar_fill[0][1].get("state"))
+
     def test_check_for_updates_shows_info_when_already_latest(self) -> None:
         window, root, controller, *_ = self.make_window()
         fake_release = SimpleNamespace(
@@ -578,6 +609,10 @@ class FakeCanvas:
 
     def create_image(self, *coords: int, **options) -> int:
         self.items.append(("image", coords, options))
+        return len(self.items)
+
+    def create_oval(self, *coords: int, **options) -> int:
+        self.items.append(("oval", coords, options))
         return len(self.items)
 
     def tag_bind(self, tag: str, event: str, callback) -> None:

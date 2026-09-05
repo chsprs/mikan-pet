@@ -23,7 +23,7 @@ from mikan_pet.core.window_layout import (
     metrics_for_dpi,
     safe_pet_work_area,
 )
-from mikan_pet.services.media_info import MediaInfoService, format_display_title
+from mikan_pet.services.media_info import MediaInfoService, format_display_title, format_time_seconds
 from mikan_pet.services.media_keys import MediaAction, MediaKeyService
 from mikan_pet.services.monitors import MonitorService, default_position
 from mikan_pet.services.settings import AppSettings
@@ -240,6 +240,46 @@ class PetWindow:
             fill=DARK,
             font="TkSmallCaptionFont",
             tags=("track_bubble", "track_bubble_text"),
+            state="hidden",
+        )
+        self.canvas.create_rectangle(
+            0,
+            0,
+            0,
+            0,
+            fill="#D4C8B8",
+            outline="",
+            tags=("track_bubble", "track_bubble_bar_bg"),
+            state="hidden",
+        )
+        self.canvas.create_rectangle(
+            0,
+            0,
+            0,
+            0,
+            fill=MIKAN_ORANGE,
+            outline="",
+            tags=("track_bubble", "track_bubble_bar_fill"),
+            state="hidden",
+        )
+        self.canvas.create_oval(
+            0,
+            0,
+            0,
+            0,
+            fill=DARK,
+            outline=CREAM,
+            width=max(1, self._scale(1)),
+            tags=("track_bubble", "track_bubble_pin"),
+            state="hidden",
+        )
+        self.canvas.create_text(
+            0,
+            0,
+            text="",
+            fill=DARK,
+            font="TkSmallCaptionFont",
+            tags=("track_bubble", "track_bubble_time"),
             state="hidden",
         )
 
@@ -615,22 +655,54 @@ class PetWindow:
         else:
             bx = self._scale(72)
             by = self._scale(18)
-        self.canvas.coords("track_bubble_text", bx, by)
-        bbox = self.canvas.bbox("track_bubble_text")
-        if bbox:
-            pad_x = self._scale(4)
-            pad_y = self._scale(2)
-            bg_x1 = bbox[0] - pad_x
-            bg_y1 = bbox[1] - pad_y
-            bg_x2 = bbox[2] + pad_x
-            bg_y2 = bbox[3] + pad_y
 
-            layout = calculate_window_layout(
-                self.controller.state.position,
-                self.controller.state.controls_visible,
-                self.metrics,
-            )
-            max_w = layout.window_size.width
+        pad_x = self._scale(5)
+        pad_y = self._scale(2)
+
+        has_timeline = getattr(track, "has_timeline", False) and track.duration_seconds > 0
+
+        layout = calculate_window_layout(
+            self.controller.state.position,
+            self.controller.state.controls_visible,
+            self.metrics,
+        )
+        max_w = layout.window_size.width
+
+        if has_timeline:
+            pos_sec = track.current_position_seconds
+            dur_sec = track.duration_seconds
+            pos_str = format_time_seconds(pos_sec)
+            dur_str = format_time_seconds(dur_sec)
+            time_str = f"{pos_str} / {dur_str}"
+            progress = max(0.0, min(1.0, pos_sec / dur_sec)) if dur_sec > 0 else 0.0
+
+            # Line 1: Title (centered at bx, by - scale(8))
+            self.canvas.coords("track_bubble_text", bx, by - self._scale(8))
+            bbox_title = self.canvas.bbox("track_bubble_text")
+            title_w = (bbox_title[2] - bbox_title[0]) if bbox_title else self._scale(70)
+
+            # Line 3: Time Text (centered at bx, by + scale(8))
+            self.canvas.itemconfigure("track_bubble_time", text=time_str, state="normal")
+            self.canvas.coords("track_bubble_time", bx, by + self._scale(8))
+            bbox_time = self.canvas.bbox("track_bubble_time")
+            time_w = (bbox_time[2] - bbox_time[0]) if bbox_time else self._scale(50)
+
+            min_bubble_w = self._scale(100)
+            bubble_w = max(title_w, time_w, min_bubble_w) + pad_x * 2
+            bg_x1 = bx - bubble_w // 2
+            bg_x2 = bx + bubble_w // 2
+            bg_y1 = by - self._scale(16)
+            bg_y2 = by + self._scale(16)
+
+            # Line 2: Seekbar with Pin (at by)
+            bar_margin = pad_x + self._scale(4)
+            bar_x1 = bg_x1 + bar_margin
+            bar_x2 = bg_x2 - bar_margin
+            bar_y = by
+            bar_h = max(1, self._scale(1))
+            pin_x = bar_x1 + int((bar_x2 - bar_x1) * progress)
+            pin_r = max(2, self._scale(2))
+
             shift_x = 0
             if bg_x1 < pad_x:
                 shift_x = pad_x - bg_x1
@@ -638,18 +710,56 @@ class PetWindow:
                 shift_x = (max_w - pad_x) - bg_x2
 
             if shift_x != 0:
-                self.canvas.coords("track_bubble_text", bx + shift_x, by)
                 bg_x1 += shift_x
                 bg_x2 += shift_x
+                bar_x1 += shift_x
+                bar_x2 += shift_x
+                pin_x += shift_x
+                self.canvas.coords("track_bubble_text", bx + shift_x, by - self._scale(8))
+                self.canvas.coords("track_bubble_time", bx + shift_x, by + self._scale(8))
 
-            self.canvas.coords(
-                "track_bubble_bg",
-                bg_x1,
-                bg_y1,
-                bg_x2,
-                bg_y2,
-            )
+            self.canvas.coords("track_bubble_bg", bg_x1, bg_y1, bg_x2, bg_y2)
+            self.canvas.coords("track_bubble_bar_bg", bar_x1, bar_y - bar_h, bar_x2, bar_y + bar_h)
+            self.canvas.coords("track_bubble_bar_fill", bar_x1, bar_y - bar_h, pin_x, bar_y + bar_h)
+            self.canvas.coords("track_bubble_pin", pin_x - pin_r, bar_y - pin_r, pin_x + pin_r, bar_y + pin_r)
+
             self.canvas.itemconfigure("track_bubble_bg", state="normal")
+            self.canvas.itemconfigure("track_bubble_bar_bg", state="normal")
+            self.canvas.itemconfigure("track_bubble_bar_fill", state="normal")
+            self.canvas.itemconfigure("track_bubble_pin", state="normal")
+        else:
+            self.canvas.itemconfigure("track_bubble_bar_bg", state="hidden")
+            self.canvas.itemconfigure("track_bubble_bar_fill", state="hidden")
+            self.canvas.itemconfigure("track_bubble_pin", state="hidden")
+            self.canvas.itemconfigure("track_bubble_time", state="hidden")
+
+            self.canvas.coords("track_bubble_text", bx, by)
+            bbox = self.canvas.bbox("track_bubble_text")
+            if bbox:
+                bg_x1 = bbox[0] - pad_x
+                bg_y1 = bbox[1] - pad_y
+                bg_x2 = bbox[2] + pad_x
+                bg_y2 = bbox[3] + pad_y
+
+                shift_x = 0
+                if bg_x1 < pad_x:
+                    shift_x = pad_x - bg_x1
+                elif bg_x2 > max_w - pad_x:
+                    shift_x = (max_w - pad_x) - bg_x2
+
+                if shift_x != 0:
+                    self.canvas.coords("track_bubble_text", bx + shift_x, by)
+                    bg_x1 += shift_x
+                    bg_x2 += shift_x
+
+                self.canvas.coords(
+                    "track_bubble_bg",
+                    bg_x1,
+                    bg_y1,
+                    bg_x2,
+                    bg_y2,
+                )
+                self.canvas.itemconfigure("track_bubble_bg", state="normal")
 
     def _current_tick_interval_ms(self) -> int:
         state = self.controller.state

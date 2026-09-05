@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "mikan-pet"
-version = "0.1.5"
+version = "0.1.6"
 description = "Animated pixel-cat desktop pet and media controller for Windows"
 requires-python = ">=3.11,<3.15"
 dependencies = [

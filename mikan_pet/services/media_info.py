@@ -16,10 +16,35 @@ class MediaTrackInfo:
     title: str = ""
     artist: str = ""
     is_playing: bool = False
+    position_seconds: float = 0.0
+    duration_seconds: float = 0.0
+    updated_at: float = 0.0
 
     @property
     def has_track(self) -> bool:
         return bool(self.title.strip())
+
+    @property
+    def has_timeline(self) -> bool:
+        return self.duration_seconds > 0
+
+    @property
+    def current_position_seconds(self) -> float:
+        """Estimate real-time current playback position based on elapsed monotonic time."""
+        if not self.is_playing or self.duration_seconds <= 0 or self.updated_at <= 0:
+            return self.position_seconds
+        elapsed = time.monotonic() - self.updated_at
+        return min(self.duration_seconds, max(0.0, self.position_seconds + elapsed))
+
+
+def format_time_seconds(seconds: float) -> str:
+    """Format seconds into M:SS or H:MM:SS (YouTube Music standard)."""
+    secs = max(0, int(seconds))
+    mins, s = divmod(secs, 60)
+    hrs, m = divmod(mins, 60)
+    if hrs > 0:
+        return f"{hrs}:{m:02d}:{s:02d}"
+    return f"{m:02d}:{s:02d}"
 
 
 def format_display_title(info: MediaTrackInfo, max_length: int = 24) -> str:
@@ -65,7 +90,10 @@ class WindowsGsmtcBackend:
         "                    $p = $t2.Result;\n"
         "                    $pb = $session.GetPlaybackInfo();\n"
         "                    $status = if ($pb) { [int]$pb.PlaybackStatus } else { 0 };\n"
-        "                    [Console]::Out.WriteLine($p.Title + '|' + $p.Artist + '|' + $status);\n"
+        "                    $tl = $session.GetTimelineProperties();\n"
+        "                    $pos = if ($tl) { [math]::Floor($tl.Position.TotalSeconds) } else { 0 };\n"
+        "                    $end = if ($tl) { [math]::Floor($tl.EndTime.TotalSeconds) } else { 0 };\n"
+        "                    [Console]::Out.WriteLine($p.Title + '|' + $p.Artist + '|' + $status + '|' + $pos + '|' + $end);\n"
         "                    [Console]::Out.Flush();\n"
         "                    continue;\n"
         "                }\n"
@@ -118,12 +146,21 @@ class WindowsGsmtcBackend:
                 output = line.strip()
                 if not output or output == "NO_SESSION":
                     return MediaTrackInfo()
-                parts = output.split("|", 2)
+                parts = output.split("|")
                 title = parts[0] if len(parts) > 0 else ""
                 artist = parts[1] if len(parts) > 1 else ""
                 status = int(parts[2]) if len(parts) > 2 and parts[2].isdigit() else 0
-                is_playing = status == 4
-                return MediaTrackInfo(title=title, artist=artist, is_playing=is_playing)
+                pos = float(parts[3]) if len(parts) > 3 and parts[3].replace(".", "", 1).isdigit() else 0.0
+                end = float(parts[4]) if len(parts) > 4 and parts[4].replace(".", "", 1).isdigit() else 0.0
+                is_playing = (status == 4)
+                return MediaTrackInfo(
+                    title=title,
+                    artist=artist,
+                    is_playing=is_playing,
+                    position_seconds=pos,
+                    duration_seconds=end,
+                    updated_at=time.monotonic(),
+                )
             except Exception:
                 self._terminate_process()
                 return MediaTrackInfo()

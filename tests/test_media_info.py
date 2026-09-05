@@ -72,6 +72,57 @@ class MediaInfoTests(unittest.TestCase):
         mock_proc.stdin.write.assert_called_with("QUIT\n")
         mock_proc.terminate.assert_called_once()
 
+    def test_format_time_seconds(self) -> None:
+        from mikan_pet.services.media_info import format_time_seconds
+        self.assertEqual("00:00", format_time_seconds(0))
+        self.assertEqual("00:09", format_time_seconds(9))
+        self.assertEqual("01:23", format_time_seconds(83))
+        self.assertEqual("03:45", format_time_seconds(225))
+        self.assertEqual("1:01:05", format_time_seconds(3665))
+
+    def test_media_track_info_timeline_properties_and_interpolation(self) -> None:
+        import time
+        t0 = time.monotonic()
+        info = MediaTrackInfo(
+            title="Song",
+            artist="Artist",
+            is_playing=True,
+            position_seconds=10.0,
+            duration_seconds=100.0,
+            updated_at=t0 - 2.5,
+        )
+        self.assertTrue(info.has_timeline)
+        self.assertGreaterEqual(info.current_position_seconds, 12.0)
+        self.assertLessEqual(info.current_position_seconds, 15.0)
+
+        # Clamps to duration
+        overflow = MediaTrackInfo(
+            title="Song",
+            is_playing=True,
+            position_seconds=95.0,
+            duration_seconds=100.0,
+            updated_at=t0 - 10.0,
+        )
+        self.assertEqual(100.0, overflow.current_position_seconds)
+
+    @patch("subprocess.Popen")
+    def test_windows_gsmtc_backend_parses_timeline_fields(self, mock_popen: Mock) -> None:
+        mock_proc = MagicMock()
+        mock_proc.poll.return_value = None
+        mock_proc.stdin = MagicMock()
+        mock_proc.stdout = io.StringIO("Golden Hour|JVKE|4|83|209\n")
+        mock_popen.return_value = mock_proc
+
+        backend = WindowsGsmtcBackend()
+        info = backend.query_current_track()
+        self.assertEqual("Golden Hour", info.title)
+        self.assertEqual("JVKE", info.artist)
+        self.assertTrue(info.is_playing)
+        self.assertEqual(83.0, info.position_seconds)
+        self.assertEqual(209.0, info.duration_seconds)
+        self.assertTrue(info.has_timeline)
+        backend.close()
+
 
 if __name__ == "__main__":
     unittest.main()

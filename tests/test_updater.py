@@ -11,7 +11,9 @@ from mikan_pet.services.updater import (
     ReleaseInfo,
     download_and_extract_update,
     fetch_latest_release,
+    is_directory_writable,
     is_newer_version,
+    launch_in_place_updater,
     parse_version,
 )
 
@@ -103,6 +105,26 @@ class UpdaterTests(unittest.TestCase):
             extracted_file = target_path / "test.txt"
             self.assertTrue(extracted_file.exists())
             self.assertEqual("hello from update", extracted_file.read_text(encoding="utf-8"))
+
+    def test_is_directory_writable_returns_true_for_temp_dir(self) -> None:
+        with TemporaryDirectory() as tmp_dir:
+            self.assertTrue(is_directory_writable(Path(tmp_dir)))
+
+    @patch("subprocess.Popen")
+    def test_launch_in_place_updater_creates_script_with_retry_loop(self, mock_popen: Mock) -> None:
+        with TemporaryDirectory() as staging, TemporaryDirectory() as install:
+            script_path = launch_in_place_updater(Path(staging), Path(install))
+            self.assertTrue(script_path.exists())
+            content = script_path.read_text(encoding="ascii")
+            self.assertIn(":copy_loop", content)
+            self.assertIn("RETRY", content)
+            self.assertIn("xcopy", content)
+            mock_popen.assert_called_once()
+            # Clean up
+            try:
+                script_path.unlink()
+            except Exception:
+                pass
 
 
 if __name__ == "__main__":

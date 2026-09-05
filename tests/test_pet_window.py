@@ -428,6 +428,43 @@ class PetWindowTests(unittest.TestCase):
         self.assertEqual(initial_face_coords, restored_face_coords)
         self.assertEqual(initial_face_fill, restored_face_fill)
 
+    def test_adaptive_tick_rate_intervals(self) -> None:
+        window, _, controller, *_ = self.make_window()
+        # Default is walking -> 50ms
+        self.assertEqual(50, window._current_tick_interval_ms())
+
+        # Stopped / Idle -> 180ms
+        controller.stop_and_idle()
+        self.assertEqual(180, window._current_tick_interval_ms())
+
+        # React -> 50ms
+        controller.react()
+        self.assertEqual(50, window._current_tick_interval_ms())
+
+        # Dragging -> 16ms
+        controller.begin_drag()
+        self.assertEqual(16, window._current_tick_interval_ms())
+
+    def test_track_bubble_clamped_within_canvas_width(self) -> None:
+        media_info = Mock()
+        media_info.current_track = SimpleNamespace(
+            has_track=True,
+            title="A Very Long Track Title That Exceeds Normal Length",
+            artist="Artist Name With Very Long Band Name",
+            is_playing=True,
+        )
+        window, root, controller, *_ = self.make_window(media_info_service=media_info)
+        # Force fake bbox returning a wide bounding box
+        orig_bbox = window.canvas.bbox
+        window.canvas.bbox = lambda tag: (-50, 5, 200, 25) if tag == "track_bubble_text" else orig_bbox(tag)
+        window._tick()
+        bubble_bg = window.canvas.items_with_tag("track_bubble_bg", kind="rectangle")
+        self.assertTrue(len(bubble_bg) > 0)
+        coords = bubble_bg[0][0]
+        # bg_x1 must be shifted so it is >= pad_x
+        self.assertGreaterEqual(coords[0], 0)
+
+
 
 
 

@@ -26,11 +26,12 @@ Ekstrak **semua** isi `MikanPet-portable-x64.zip` ke satu folder terlebih dahulu
 
 ## Skin
 
-Tersedia tiga skin yang dapat diganti langsung tanpa restart:
+Tersedia empat variasi skin pixel-art 3/4 yang dapat diganti langsung tanpa restart melalui menu klik kanan:
 
-- **Mikan** — tabby oranye.
-- **Byte** — kucing indigo dengan aksen neon.
-- **Mochi** — calico krem.
+- **Mikan** — kucing tabby oranye dengan belang punggung dan perut krem.
+- **Byte** — kucing hitam arang pekat dengan mata emas amber.
+- **Mochi** — kucing putih bersih dengan mata biru langit.
+- **Ash** — kucing tabby abu-abu dengan corak perut merah muda.
 
 ## Pengaturan
 

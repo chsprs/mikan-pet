@@ -599,18 +599,51 @@ class PetWindow:
         if bbox:
             pad_x = self._scale(4)
             pad_y = self._scale(2)
+            bg_x1 = bbox[0] - pad_x
+            bg_y1 = bbox[1] - pad_y
+            bg_x2 = bbox[2] + pad_x
+            bg_y2 = bbox[3] + pad_y
+
+            layout = calculate_window_layout(
+                self.controller.state.position,
+                self.controller.state.controls_visible,
+                self.metrics,
+            )
+            max_w = layout.window_size.width
+            shift_x = 0
+            if bg_x1 < pad_x:
+                shift_x = pad_x - bg_x1
+            elif bg_x2 > max_w - pad_x:
+                shift_x = (max_w - pad_x) - bg_x2
+
+            if shift_x != 0:
+                self.canvas.coords("track_bubble_text", bx + shift_x, by)
+                bg_x1 += shift_x
+                bg_x2 += shift_x
+
             self.canvas.coords(
                 "track_bubble_bg",
-                bbox[0] - pad_x,
-                bbox[1] - pad_y,
-                bbox[2] + pad_x,
-                bbox[3] + pad_y,
+                bg_x1,
+                bg_y1,
+                bg_x2,
+                bg_y2,
             )
             self.canvas.itemconfigure("track_bubble_bg", state="normal")
 
+    def _current_tick_interval_ms(self) -> int:
+        state = self.controller.state
+        if state.motion is MotionMode.DRAGGING:
+            return 16
+        if state.motion is MotionMode.AUTOMATIC and state.pose is Pose.WALK:
+            return TICK_MS
+        if state.pose is Pose.REACT:
+            return TICK_MS
+        return 180
+
     def _schedule_tick(self) -> None:
         if not self._closing:
-            self._after_id = self.root.after(TICK_MS, self._tick)
+            interval = self._current_tick_interval_ms()
+            self._after_id = self.root.after(interval, self._tick)
 
     def _reconcile_position(self) -> None:
         """Keep the complete window safe without changing motion or pose timers."""
@@ -715,6 +748,21 @@ class PetWindow:
         self.on_settings_changed(self.snapshot_settings())
 
     def _report_callback_exception(self, _exc_type, _exc_value, _traceback) -> None:
+        try:
+            import os
+            import traceback
+            from pathlib import Path
+            appdata = os.environ.get("APPDATA")
+            if appdata:
+                log_dir = Path(appdata) / "MikanPet" / "logs"
+                log_dir.mkdir(parents=True, exist_ok=True)
+                log_file = log_dir / "mikan_pet.log"
+                with open(log_file, "a", encoding="utf-8") as f:
+                    f.write(f"\n--- Exception at {time.strftime('%Y-%m-%d %H:%M:%S')} ---\n")
+                    traceback.print_exception(_exc_type, _exc_value, _traceback, file=f)
+        except Exception:
+            pass
+
         self.controller.stop_and_idle()
         self._walking_before_drag = False
         self.menu.entryconfigure(0, label=context_menu_labels(False)[0])
@@ -746,6 +794,11 @@ class PetWindow:
         if self._after_id is not None:
             self.root.after_cancel(self._after_id)
             self._after_id = None
+        if self.media_info_service is not None:
+            try:
+                self.media_info_service.close()
+            except Exception:
+                pass
         try:
             self.dpi_watcher.close()
         except Exception:

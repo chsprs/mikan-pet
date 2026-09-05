@@ -1,9 +1,11 @@
+import io
 import unittest
-from unittest.mock import Mock
+from unittest.mock import MagicMock, Mock, patch
 
 from mikan_pet.services.media_info import (
     MediaInfoService,
     MediaTrackInfo,
+    WindowsGsmtcBackend,
     format_display_title,
 )
 
@@ -33,7 +35,6 @@ class MediaInfoTests(unittest.TestCase):
         backend.query_current_track.return_value = expected
         service = MediaInfoService(backend, poll_interval_seconds=0.0)
         service.poll_if_due()
-        # Wait briefly for worker thread
         import time
         time.sleep(0.05)
         self.assertEqual(expected, service.current_track)
@@ -46,6 +47,30 @@ class MediaInfoTests(unittest.TestCase):
         import time
         time.sleep(0.05)
         self.assertEqual(MediaTrackInfo(), service.current_track)
+
+    def test_media_info_service_close_forwards_to_backend(self) -> None:
+        backend = Mock()
+        service = MediaInfoService(backend)
+        service.close()
+        backend.close.assert_called_once()
+
+    @patch("subprocess.Popen")
+    def test_windows_gsmtc_backend_parses_track_and_closes_cleanly(self, mock_popen: Mock) -> None:
+        mock_proc = MagicMock()
+        mock_proc.poll.return_value = None
+        mock_proc.stdin = MagicMock()
+        mock_proc.stdout = io.StringIO("Blue Bird|Ikimono Gakari|4\n")
+        mock_popen.return_value = mock_proc
+
+        backend = WindowsGsmtcBackend()
+        info = backend.query_current_track()
+        self.assertEqual("Blue Bird", info.title)
+        self.assertEqual("Ikimono Gakari", info.artist)
+        self.assertTrue(info.is_playing)
+
+        backend.close()
+        mock_proc.stdin.write.assert_called_with("QUIT\n")
+        mock_proc.terminate.assert_called_once()
 
 
 if __name__ == "__main__":

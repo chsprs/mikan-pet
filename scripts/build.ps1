@@ -114,7 +114,8 @@ try {
 
     if (-not $SkipInstaller) {
         $iscc = Find-Iscc
-        Invoke-Checked $iscc @('/Qp', (Join-Path $ProjectRoot 'installer\MikanPet.iss'))
+        $appVersion = (& $Python -c "import mikan_pet; print(mikan_pet.__version__)").Trim()
+        Invoke-Checked $iscc @("/DMyAppVersion=$appVersion", '/Qp', (Join-Path $ProjectRoot 'installer\MikanPet.iss'))
         if (-not (Test-Path -LiteralPath $installer) -or (Get-Item -LiteralPath $installer).Length -le 0) {
             throw "Installer was not created: $installer"
         }

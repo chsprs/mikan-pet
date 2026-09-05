@@ -99,6 +99,17 @@ def download_and_extract_update(zip_url: str, target_dir: Path, timeout: float =
         zf.extractall(target_dir)
 
 
+def is_directory_writable(directory: Path) -> bool:
+    """Check if the directory is writable by the current process without admin elevation."""
+    try:
+        test_file = directory / f".mikan_write_test_{os.getpid()}"
+        test_file.touch(exist_ok=False)
+        test_file.unlink(missing_ok=True)
+        return True
+    except (OSError, PermissionError):
+        return False
+
+
 def launch_in_place_updater(
     staging_dir: Path,
     install_dir: Path,
@@ -108,16 +119,45 @@ def launch_in_place_updater(
     temp_dir = Path(tempfile.gettempdir())
     script_path = temp_dir / "_mikan_update.cmd"
 
+    target_exe = install_dir / target_exe_name
     script_content = (
         "@echo off\r\n"
+        "setlocal enabledelayedexpansion\r\n"
         "timeout /t 1 /nobreak >nul\r\n"
         f'taskkill /F /PID {os.getpid()} >nul 2>&1\r\n'
-        f'xcopy "{staging_dir}\\*" "{install_dir}\\" /E /Y /Q >nul\r\n'
-        f'rmdir /S /Q "{staging_dir}"\r\n'
-        f'start "" "{install_dir / target_exe_name}"\r\n'
+        "timeout /t 1 /nobreak >nul\r\n"
+        "set RETRY=0\r\n"
+        ":copy_loop\r\n"
+        f'xcopy "{staging_dir}\\*" "{install_dir}\\" /E /Y /Q >nul 2>&1\r\n'
+        "if errorlevel 1 (\r\n"
+        "    set /a RETRY+=1\r\n"
+        "    if !RETRY! leq 10 (\r\n"
+        "        timeout /t 1 /nobreak >nul\r\n"
+        "        goto copy_loop\r\n"
+        "    )\r\n"
+        ")\r\n"
+        f'rmdir /S /Q "{staging_dir}" >nul 2>&1\r\n'
+        f'start "" "{target_exe}"\r\n'
         "(goto) 2>nul & del \"%~f0\"\r\n"
     )
     script_path.write_text(script_content, encoding="ascii")
+
+    writable = is_directory_writable(install_dir)
+    if not writable and sys.platform == "win32":
+        # Request UAC elevation to copy into protected directories
+        try:
+            import ctypes
+            ctypes.windll.shell32.ShellExecuteW(
+                None,
+                "runas",
+                "cmd.exe",
+                f'/c "{script_path}"',
+                None,
+                0,  # SW_HIDE
+            )
+            return script_path
+        except Exception:
+            pass
 
     creation_flags = 0x08000000 if sys.platform == "win32" else 0  # CREATE_NO_WINDOW
     subprocess.Popen(

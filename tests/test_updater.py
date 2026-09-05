@@ -58,7 +58,7 @@ class UpdaterTests(unittest.TestCase):
         mock_response.__enter__.return_value = mock_response
 
         with patch("urllib.request.urlopen", return_value=mock_response):
-            release = fetch_latest_release("owner/mikan-pet")
+            release = fetch_latest_release("owner/mikan-pet", machine="AMD64")
 
         self.assertIsNotNone(release)
         self.assertEqual("0.2.0", release.version)

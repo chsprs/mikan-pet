@@ -50,13 +50,18 @@ $bytes = [IO.File]::ReadAllBytes($detectedExe)
 $isValidPE = ($bytes.Length -ge 64 -and $bytes[0] -eq 0x4D -and $bytes[1] -eq 0x5A)
 $peOffset = [BitConverter]::ToInt32($bytes, 0x3C)
 $machine = [BitConverter]::ToUInt16($bytes, $peOffset + 4)
-$is64Bit = ($machine -eq 0x8664)
+$architecture = switch ($machine) {
+    0x8664 { "x64 (OK)" }
+    0xAA64 { "ARM64 (OK)" }
+    default { "Tidak didukung (PE 0x{0:X4})" -f $machine }
+}
+$is64Bit = ($machine -in @(0x8664, 0xAA64))
 
 $internalDir = Join-Path (Split-Path $detectedExe) "_internal"
 $hasInternal = Test-Path -LiteralPath $internalDir
 
 Write-Host "    Ukuran : $([math]::Round($item.Length / 1MB, 2)) MB"
-Write-Host "    Arsitektur : $(if ($is64Bit) { '64-bit AMD64 (OK)' } else { 'Bukan 64-bit (INVALID)' })"
+Write-Host "    Arsitektur : $architecture"
 Write-Host "    _internal  : $(if ($hasInternal) { 'Lengkap (OK)' } else { 'Tidak Ditemukan (INVALID)' })"
 
 # 3. Periksa status proses berjalan

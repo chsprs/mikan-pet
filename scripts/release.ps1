@@ -63,13 +63,34 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 Write-Host "==> Release $tag pushed! GitHub Actions will build installer & portable zip."
-if (Get-Command gh -ErrorAction SilentlyContinue) {
-    Write-Host "Menunggu status GitHub Actions..."
-    Start-Sleep -Seconds 5
-    $runId = (gh run list --workflow=release.yml --limit=1 --json databaseId -q '.[0].databaseId')
-    if ($runId) {
-        Write-Host "Monitoring Run ID: $runId"
-        gh run watch $runId
-    }
+if (-not (Get-Command gh -ErrorAction SilentlyContinue)) {
+    throw "GitHub CLI (gh) diperlukan untuk membuktikan hasil rilis."
 }
-Write-Host "==> Rilis $tag selesai dan siap diunduh pengguna via auto-updater!"
+Write-Host "Menunggu status GitHub Actions..."
+Start-Sleep -Seconds 5
+$runId = (gh run list --workflow=release.yml --limit=1 --json databaseId -q '.[0].databaseId')
+if (-not $runId) {
+    throw "Workflow rilis tidak ditemukan setelah tag $tag didorong."
+}
+Write-Host "Monitoring Run ID: $runId"
+gh run watch $runId --exit-status
+if ($LASTEXITCODE -ne 0) {
+    throw "Workflow rilis gagal untuk tag $tag (Run ID: $runId)."
+}
+
+$assetNames = @(gh release view $tag --json assets --jq '.assets[].name')
+if ($LASTEXITCODE -ne 0) {
+    throw "GitHub Release $tag tidak dapat diverifikasi."
+}
+$requiredAssets = @(
+    'MikanPet-Setup-x64.exe',
+    'MikanPet-portable-x64.zip',
+    'MikanPet-Setup-arm64.exe',
+    'MikanPet-portable-arm64.zip',
+    'SHA256SUMS.txt'
+)
+$missingAssets = @($requiredAssets | Where-Object { $_ -notin $assetNames })
+if ($missingAssets.Count -gt 0) {
+    throw "Rilis $tag tidak lengkap. Aset hilang: $($missingAssets -join ', ')"
+}
+Write-Host "==> Rilis $tag selesai, lengkap, dan siap diunduh pengguna via auto-updater!"

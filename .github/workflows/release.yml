@@ -26,7 +26,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Set up Python
         uses: actions/setup-python@v6
@@ -72,7 +72,7 @@ jobs:
             -InstallDirectory "$env:RUNNER_TEMP\MikanPet-${{ matrix.arch }}"
 
       - name: Upload release assets
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: mikan-pet-${{ matrix.arch }}
           if-no-files-found: error
@@ -92,12 +92,12 @@ jobs:
 
     steps:
       - name: Checkout repository history
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
       - name: Download verified packages
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v6
         with:
           path: release-assets
           merge-multiple: true

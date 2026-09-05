@@ -60,7 +60,24 @@ py -3 -m venv .venv
 .\scripts\build.ps1 -Python '.\.venv\Scripts\python.exe'
 ```
 
-Build menghasilkan `dist\MikanPet-Setup-x64.exe` dan `dist\MikanPet-portable-x64.zip`. Lihat `docs\testing-checklist.md` untuk prosedur verifikasi manual dan status rilis.
+Output build berada di `dist\MikanPet-Setup-x64.exe` dan `dist\MikanPet-portable-x64.zip`.
+
+## Alur Rilis & Push GitHub
+
+Untuk merilis versi baru ke GitHub secara otomatis (sinkronisasi versi, tes unit, git commit, tag, push, dan pantauan CI):
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/release.ps1 -Version "0.1.6" -Message "feat: deskripsi perubahan"
+```
+
+Skrip ini akan secara otomatis:
+1. Memperbarui nomor versi di 4 berkas (`pyproject.toml`, `__init__.py`, `app.py`, `MikanPet.iss`).
+2. Menjalankan seluruh tes unit.
+3. Melakukan git commit dan tag `vX.Y.Z`.
+4. Mendorong commit dan tag ke GitHub (`git push origin main --tags`).
+5. Memantau workflow GitHub Actions hingga installer & portable zip selesai dibangun dan dipublikasikan di GitHub Releases.
+
+Detail dan panduan lengkap dapat dilihat pada skill `.agents/skills/mikan-release/SKILL.md`.
 
 ## Sistem yang didukung
 

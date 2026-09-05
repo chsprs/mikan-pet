@@ -61,12 +61,12 @@ class SpriteRegistryTests(unittest.TestCase):
         self.assertNotEqual(paws_f0, paws_f2)
 
     def test_sleep_closed_eyes_are_dark_rectangles(self) -> None:
-        eyes = [rect for rect in FRAMES[Pose.SLEEP][0].rectangles if rect.role is ColorRole.DARK and rect.y == 20]
+        eyes = [rect for rect in FRAMES[Pose.SLEEP][0].rectangles if rect.role is ColorRole.DARK and rect.y == 23]
         self.assertTrue(any(rect.width >= 3 for rect in eyes))
 
     def test_react_replaces_ears_with_raised_ears(self) -> None:
-        react_ears = [rect for rect in FRAMES[Pose.REACT][0].rectangles if rect.role is ColorRole.COLLAR and rect.y == 13]
-        stand_ears = [rect for rect in FRAMES[Pose.IDLE][0].rectangles if rect.role is ColorRole.COLLAR and rect.y == 13]
+        react_ears = [rect for rect in FRAMES[Pose.REACT][0].rectangles if rect.role is ColorRole.COLLAR and rect.y == 11]
+        stand_ears = [rect for rect in FRAMES[Pose.IDLE][0].rectangles if rect.role is ColorRole.COLLAR and rect.y == 11]
         self.assertEqual(2, len(react_ears))
         self.assertEqual(0, len(stand_ears))
 

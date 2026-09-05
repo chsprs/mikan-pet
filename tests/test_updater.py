@@ -1,10 +1,12 @@
+from __future__ import annotations
+
 import io
 import json
 import unittest
 import zipfile
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, Mock, patch
 from urllib.error import URLError
 
 from mikan_pet.services.updater import (

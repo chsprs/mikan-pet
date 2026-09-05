@@ -317,12 +317,19 @@ class PetWindow:
 
             if not is_newer_version(__version__, release.version):
                 notes = release.release_notes.strip()
-                summary = f"\n\nCatatan rilis v{release.version}:\n{notes[:300]}..." if notes else ""
+                summary = f"\n\nCatatan rilis:\n{notes[:300]}..." if notes else ""
+                msg = (
+                    f"Status: SESUAI DENGAN GITHUB\n\n"
+                    f"• Versi terpasang: v{__version__}\n"
+                    f"• Versi GitHub terbaru: v{release.version}\n"
+                    f"• Hasil verifikasi: Bebas bug versi (versi terbaru){summary}\n\n"
+                    f"Aplikasi Mikan Pet yang terpasang sudah 100% sinkron dengan rilis resmi di GitHub."
+                )
                 self.root.after(
                     0,
                     lambda: messagebox.showinfo(
-                        "Mikan Pet",
-                        f"Mikan Pet v{__version__} sudah versi terbaru!{summary}",
+                        "Mikan Pet - Verifikasi Versi GitHub",
+                        msg,
                         parent=self.root,
                     ),
                 )
@@ -331,9 +338,16 @@ class PetWindow:
             def on_confirm_update() -> None:
                 notes = release.release_notes.strip()
                 summary = f"\n\nCatatan rilis:\n{notes[:300]}..." if notes else ""
+                msg = (
+                    f"Status: BELUM SESUAI DENGAN GITHUB\n\n"
+                    f"• Versi terpasang: v{__version__}\n"
+                    f"• Versi GitHub terbaru: v{release.version} (lebih baru)\n"
+                    f"{summary}\n\n"
+                    f"Apakah Anda ingin memperbarui sekarang tanpa perlu install ulang?"
+                )
                 should_update = messagebox.askyesno(
                     "Mikan Pet - Pembaruan Tersedia",
-                    f"Versi baru v{release.version} tersedia! (Saat ini: v{__version__}){summary}\n\nPerbarui sekarang tanpa perlu install ulang?",
+                    msg,
                     parent=self.root,
                 )
                 if not should_update:

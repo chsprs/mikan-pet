@@ -23,6 +23,7 @@ from mikan_pet.core.window_layout import (
     metrics_for_dpi,
     safe_pet_work_area,
 )
+from mikan_pet.services.media_info import MediaInfoService, format_display_title
 from mikan_pet.services.media_keys import MediaAction, MediaKeyService
 from mikan_pet.services.monitors import MonitorService, default_position
 from mikan_pet.services.settings import AppSettings
@@ -87,12 +88,14 @@ class PetWindow:
         media_service: MediaKeyService,
         on_settings_changed: Callable[[AppSettings], None],
         dpi_watcher_factory=DpiWatcher,
+        media_info_service: MediaInfoService | None = None,
     ) -> None:
         self.root = root
         self.controller = controller
         self.sprite_cache = sprite_cache
         self.monitor_service = monitor_service
         self.media_service = media_service
+        self.media_info_service = media_info_service
         self.on_settings_changed = on_settings_changed
         self._closing = False
         self._error_reported = False
@@ -102,6 +105,8 @@ class PetWindow:
         self._walking_before_drag = controller.state.motion is MotionMode.AUTOMATIC
         self.frame_index = 0
         self._image_ref: object | None = None
+        self._last_track_title = ""
+        self._track_visible_until_ns = 0
 
         configure_pet_root(root, TRANSPARENT_COLOR, controller.state.always_on_top)
         self.dpi_watcher = dpi_watcher_factory(root, self._on_dpi_changed)
@@ -208,6 +213,26 @@ class PetWindow:
             image=self._image_ref,
             anchor="nw",
             tags=("pet",),
+        )
+        self.canvas.create_rectangle(
+            0,
+            0,
+            0,
+            0,
+            fill=CREAM,
+            outline=DARK,
+            width=max(1, self._scale(1)),
+            tags=("track_bubble", "track_bubble_bg"),
+            state="hidden",
+        )
+        self.canvas.create_text(
+            0,
+            0,
+            text="",
+            fill=DARK,
+            font="TkSmallCaptionFont",
+            tags=("track_bubble", "track_bubble_text"),
+            state="hidden",
         )
 
     def _bind_canvas_events(self) -> None:
@@ -389,7 +414,49 @@ class PetWindow:
         image_x = layout.pet_offset.x + self.metrics.pet_image_offset.x
         image_y = layout.pet_offset.y + self.metrics.pet_image_offset.y
         self.canvas.coords("pet", image_x, image_y)
+        self._update_track_info()
         self.root.update_idletasks()
+
+    def _update_track_info(self) -> None:
+        service = getattr(self, "media_info_service", None)
+        if service is None or not hasattr(self, "_last_track_title"):
+            return
+        service.poll_if_due()
+        track = service.current_track
+        now_ns = time.monotonic_ns()
+        title_text = format_display_title(track, max_length=22)
+        if title_text and title_text != self._last_track_title:
+            self._last_track_title = title_text
+            self._track_visible_until_ns = now_ns + 4_000_000_000
+
+        should_show = bool(title_text) and (
+            self.controller.state.controls_visible or now_ns < self._track_visible_until_ns
+        )
+        if not should_show:
+            self.canvas.itemconfigure("track_bubble", state="hidden")
+            return
+
+        display_str = f"♪ {title_text}"
+        self.canvas.itemconfigure("track_bubble_text", text=display_str, state="normal")
+        if self.controller.state.controls_visible:
+            bx = self._scale(100)
+            by = self._scale(68)
+        else:
+            bx = self._scale(72)
+            by = self._scale(18)
+        self.canvas.coords("track_bubble_text", bx, by)
+        bbox = self.canvas.bbox("track_bubble_text")
+        if bbox:
+            pad_x = self._scale(4)
+            pad_y = self._scale(2)
+            self.canvas.coords(
+                "track_bubble_bg",
+                bbox[0] - pad_x,
+                bbox[1] - pad_y,
+                bbox[2] + pad_x,
+                bbox[3] + pad_y,
+            )
+            self.canvas.itemconfigure("track_bubble_bg", state="normal")
 
     def _schedule_tick(self) -> None:
         if not self._closing:

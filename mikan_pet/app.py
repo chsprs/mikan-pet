@@ -11,6 +11,7 @@ from mikan_pet.core.sprites import validate_registry
 from mikan_pet.core.state import PetController, PetState
 from mikan_pet.core.types import Direction, MotionMode, Pose
 from mikan_pet.core.window_layout import DpiMetrics, metrics_for_dpi
+from mikan_pet.services.media_info import MediaInfoService
 from mikan_pet.services.media_keys import MEDIA_VIRTUAL_KEYS, MediaAction, MediaKeyService
 from mikan_pet.services.monitors import MonitorService, Win32MonitorBackend, default_position, enable_per_monitor_dpi_awareness
 from mikan_pet.services.settings import AppSettings, SettingsStore, default_settings, settings_path
@@ -122,6 +123,7 @@ def default_window_factory(
             monitor_service,
             media_service,
             on_settings_changed,
+            MediaInfoService(),
         )
     except Exception:
         root.destroy()

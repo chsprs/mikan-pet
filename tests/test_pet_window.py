@@ -5,6 +5,7 @@ from unittest.mock import Mock, call, patch
 from mikan_pet.core.sprites import frame_count
 from mikan_pet.core.state import PetController, PetState
 from mikan_pet.core.types import Direction, MotionMode, Point, Pose, SkinId, WorkArea
+from mikan_pet.services.media_info import MediaTrackInfo
 from mikan_pet.services.media_keys import MediaAction
 from mikan_pet.services.monitors import MonitorInfo, MonitorService
 from mikan_pet.services.settings import AppSettings
@@ -69,6 +70,7 @@ class PetWindowTests(unittest.TestCase):
         motion: MotionMode = MotionMode.AUTOMATIC,
         pose: Pose = Pose.WALK,
         controls_visible: bool = True,
+        media_info_service=None,
     ) -> tuple[PetWindow, FakeRoot, PetController, FakeSpriteCache, FakeMediaService, list[AppSettings], FakeWatcher]:
         root = FakeRoot()
         controller = PetController(
@@ -99,6 +101,7 @@ class PetWindowTests(unittest.TestCase):
             media_service,
             settings.append,
             dpi_watcher_factory=watcher_factory,
+            media_info_service=media_info_service,
         )
         return (
             window,
@@ -365,6 +368,22 @@ class PetWindowTests(unittest.TestCase):
         self.assertTrue(all(opt.get("state") == "hidden" for _, opt in controls))
         self.assertGreater(root.update_idletasks_calls, 0)
 
+    def test_track_info_bubble_displayed_when_track_is_playing(self) -> None:
+        media_info = Mock()
+        media_info.current_track = MediaTrackInfo(
+            title="Song A", artist="Artist B", is_playing=True
+        )
+        window, root, controller, *_ = self.make_window(media_info_service=media_info)
+        window._tick()
+        bubble_bg = window.canvas.items_with_tag("track_bubble", kind="rectangle")
+        bubble_txt = window.canvas.items_with_tag("track_bubble", kind="text")
+        self.assertTrue(len(bubble_bg) > 0)
+        self.assertTrue(len(bubble_txt) > 0)
+        self.assertEqual("normal", bubble_bg[0][1].get("state"))
+        self.assertEqual("normal", bubble_txt[0][1].get("state"))
+        self.assertIn("Song A", bubble_txt[0][1].get("text"))
+
+
 
 def event_at(x: int, y: int) -> SimpleNamespace:
     return SimpleNamespace(x_root=x, y_root=y)
@@ -505,6 +524,21 @@ class FakeCanvas:
             max(item[2] for item in coords),
             max(item[3] for item in coords),
         )
+
+    def bbox(self, tag: str) -> tuple[int, int, int, int] | None:
+        coords = [coords for coords, _ in self.items_with_tag(tag) if len(coords) == 4]
+        if coords:
+            return (
+                min(item[0] for item in coords),
+                min(item[1] for item in coords),
+                max(item[2] for item in coords),
+                max(item[3] for item in coords),
+            )
+        text_items = [coords for coords, _ in self.items_with_tag(tag, kind="text") if len(coords) == 2]
+        if text_items:
+            x, y = text_items[0]
+            return (x - 20, y - 8, x + 20, y + 8)
+        return None
 
 
 class FakeMenu:

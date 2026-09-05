@@ -14,12 +14,15 @@ Installer memasang aplikasi untuk pengguna saat ini dan tidak memerlukan Python 
 
 Ekstrak **semua** isi `MikanPet-portable-x64.zip` ke satu folder terlebih dahulu, lalu jalankan `MikanPet.exe` dari folder hasil ekstrak. Jangan menjalankan EXE langsung dari dalam arsip ZIP.
 
-## Kontrol
+## Kontrol & Fitur
 
-- Klik kucing untuk menampilkan atau menyembunyikan gelembung kontrol.
+- Klik kucing untuk menampilkan atau menyembunyikan gelembung kontrol media.
 - Seret kucing untuk memindahkannya. Pergerakan minimal 5 piksel logis setelah menekan mouse dihitung sebagai drag, bukan klik.
-- Klik kanan kucing untuk membuka menu: mulai/berhenti berjalan, pilih skin, **Always on top**, reset posisi, atau keluar.
+- Klik kanan kucing untuk membuka menu: mulai/berhenti berjalan, pilih skin, **Always on top**, reset posisi, **Periksa Pembaruan**, atau keluar.
 - Tiga tombol media adalah **sebelumnya**, **putar/jeda**, dan **berikutnya**. Windows meneruskannya ke sesi media aktif.
+- **Judul Lagu yang Diputar**: Mikan Pet secara otomatis mendeteksi sesi media Windows (GSMTC) dan menampilkan judul lagu beserta artis dalam gelembung mini di atas kucing.
+- **Animasi Tidur Zzzz**: Ketika kucing tertidur (`SLEEP`), animasi huruf "Z" pixel-art naik secara prosedural.
+- **Pembaruan Otomatis In-Place**: Klik kanan dan pilih **Periksa Pembaruan** untuk mengecek versi baru di GitHub Releases dan memperbarui aplikasi secara otomatis tanpa perlu menjalankan installer setup ulang.
 
 ## Skin
 

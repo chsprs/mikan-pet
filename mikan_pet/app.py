@@ -16,6 +16,7 @@ from mikan_pet.services.media_keys import MEDIA_VIRTUAL_KEYS, MediaAction, Media
 from mikan_pet.services.monitors import MonitorService, Win32MonitorBackend, default_position, enable_per_monitor_dpi_awareness
 from mikan_pet.services.settings import AppSettings, SettingsStore, default_settings, settings_path
 from mikan_pet.services.singleton import SingleInstance
+from mikan_pet.ui.dpi import DpiWatcher
 from mikan_pet.ui.pet_window import PetWindow
 from mikan_pet.ui.sprite_cache import SpriteCache
 
@@ -123,6 +124,7 @@ def default_window_factory(
             monitor_service,
             media_service,
             on_settings_changed,
+            DpiWatcher,
             MediaInfoService(),
         )
     except Exception:

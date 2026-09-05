@@ -6,24 +6,36 @@ on:
       - 'v*'
   workflow_dispatch:
 
-permissions:
-  contents: write
-
 jobs:
-  build-and-release:
-    name: Build & Release Windows Binaries
-    runs-on: windows-latest
+  build:
+    name: Build and test ${{ matrix.arch }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x64
+            runner: windows-latest
+          - arch: arm64
+            runner: windows-11-arm
+    runs-on: ${{ matrix.runner }}
+    permissions:
+      contents: read
+    env:
+      WINDOWS_CERT_BASE64: ${{ secrets.WINDOWS_CERT_BASE64 }}
+      WINDOWS_CERT_PASSWORD: ${{ secrets.WINDOWS_CERT_PASSWORD }}
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
-          python-version: "3.12"
+          python-version: '3.12'
+          architecture: ${{ matrix.arch }}
 
       - name: Install Inno Setup
+        shell: powershell
         run: |
           choco install innosetup -y --no-progress
           echo "C:\Program Files (x86)\Inno Setup 6" >> $env:GITHUB_PATH
@@ -34,37 +46,111 @@ jobs:
           python -m pip install -r requirements-build.txt
           python -m pip install -e .
 
-      - name: Run unit tests
-        run: |
-          python -m unittest discover -s tests -v
-
-      - name: Build Installer & Portable Archive
+      - name: Build signed packages when certificate is configured
         shell: powershell
         run: |
-          powershell -ExecutionPolicy Bypass -File scripts/build.ps1 -Python (Get-Command python).Source
+          $parameters = @{
+            Python = (Get-Command python).Source
+            Architecture = '${{ matrix.arch }}'
+          }
+          if ($env:WINDOWS_CERT_BASE64) {
+            if (-not $env:WINDOWS_CERT_PASSWORD) {
+              throw 'WINDOWS_CERT_PASSWORD is required when WINDOWS_CERT_BASE64 is configured.'
+            }
+            $certificatePath = Join-Path $env:RUNNER_TEMP 'mikan-signing.pfx'
+            [IO.File]::WriteAllBytes($certificatePath, [Convert]::FromBase64String($env:WINDOWS_CERT_BASE64))
+            $parameters.SigningCertificatePath = $certificatePath
+            $parameters.SigningCertificatePassword = $env:WINDOWS_CERT_PASSWORD
+          }
+          & .\scripts\build.ps1 @parameters
 
-      - name: Generate Release Notes
+      - name: Smoke-test installer install and uninstall
+        shell: powershell
+        run: |
+          .\scripts\test_installer.ps1 `
+            -Installer ".\dist\MikanPet-Setup-${{ matrix.arch }}.exe" `
+            -InstallDirectory "$env:RUNNER_TEMP\MikanPet-${{ matrix.arch }}"
+
+      - name: Upload release assets
+        uses: actions/upload-artifact@v4
+        with:
+          name: mikan-pet-${{ matrix.arch }}
+          if-no-files-found: error
+          path: |
+            dist/MikanPet-Setup-${{ matrix.arch }}.exe
+            dist/MikanPet-portable-${{ matrix.arch }}.zip
+
+  release:
+    name: Publish verified release
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: windows-latest
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+
+    steps:
+      - name: Checkout repository history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download verified packages
+        uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+          merge-multiple: true
+
+      - name: Generate SHA-256 checksums
+        shell: powershell
+        run: |
+          $lines = Get-ChildItem -LiteralPath release-assets -File |
+            Sort-Object Name |
+            ForEach-Object {
+              $hash = (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+              "$hash  $($_.Name)"
+            }
+          [IO.File]::WriteAllLines(
+            (Join-Path $PWD 'release-assets\SHA256SUMS.txt'),
+            $lines,
+            [Text.UTF8Encoding]::new($false)
+          )
+
+      - name: Generate release notes
         shell: powershell
         run: |
           $tag = $env:GITHUB_REF -replace 'refs/tags/', ''
+          $previousTag = git describe --tags --abbrev=0 "$tag^" 2>$null
+          $range = if ($previousTag) { "$previousTag..$tag" } else { $tag }
+          $commits = git log $range --pretty=format:"- %s (%h)"
           $notes = @"
-          ### 🐾 Pembaruan Mikan Pet $tag
+          ### Mikan Pet $tag
 
-          #### 📦 Berkas Rilis:
-          - **MikanPet-Setup-x64.exe**: Windows Installer
-          - **MikanPet-portable-x64.zip**: Windows Portable (ekstrak dan langsung jalankan)
+          Paket rilis:
+          - MikanPet-Setup-x64.exe: installer Windows x64
+          - MikanPet-portable-x64.zip: paket portable Windows x64
+          - MikanPet-Setup-arm64.exe: installer native Windows 11 ARM64
+          - MikanPet-portable-arm64.zip: paket portable native Windows 11 ARM64
+          - SHA256SUMS.txt: checksum seluruh paket
 
-          #### 📋 Catatan Komit Terbaru:
+          Perubahan:
+
+          $commits
           "@
-          $commits = git log -n 10 --pretty=format:"- %s (%h)"
-          $notes = $notes + "`r`n`r`n" + $commits + "`r`n"
-          [IO.File]::WriteAllText("release_notes.md", $notes, [Text.Encoding]::UTF8)
+          [IO.File]::WriteAllText(
+            (Join-Path $PWD 'release_notes.md'),
+            $notes,
+            [Text.UTF8Encoding]::new($false)
+          )
+
+      - name: Attest release packages
+        uses: actions/attest-build-provenance@v3
+        with:
+          subject-path: 'release-assets/*'
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
-        if: startsWith(github.ref, 'refs/tags/v')
         with:
           body_path: release_notes.md
-          files: |
-            dist/MikanPet-Setup-x64.exe
-            dist/MikanPet-portable-x64.zip
+          files: release-assets/*

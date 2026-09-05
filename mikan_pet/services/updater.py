@@ -3,8 +3,11 @@
 from __future__ import annotations
 
 import io
+import hashlib
 import json
 import os
+import platform
+import stat
 import subprocess
 import sys
 import tempfile
@@ -21,6 +24,7 @@ class ReleaseInfo:
     version: str
     tag_name: str
     zip_url: str | None
+    zip_sha256: str | None
     html_url: str
     release_notes: str
 
@@ -41,7 +45,25 @@ def is_newer_version(current: str, candidate: str) -> bool:
     return parse_version(candidate) > parse_version(current)
 
 
-def fetch_latest_release(repo: str, timeout: float = 5.0) -> ReleaseInfo | None:
+def _release_architecture(machine: str) -> str:
+    return "arm64" if machine.strip().lower() in {"arm64", "aarch64"} else "x64"
+
+
+def _asset_sha256(asset: dict) -> str | None:
+    digest = str(asset.get("digest", ""))
+    prefix = "sha256:"
+    value = digest[len(prefix):].lower() if digest.lower().startswith(prefix) else ""
+    if len(value) == 64 and all(character in "0123456789abcdef" for character in value):
+        return value
+    return None
+
+
+def fetch_latest_release(
+    repo: str,
+    timeout: float = 5.0,
+    *,
+    machine: str | None = None,
+) -> ReleaseInfo | None:
     """Query GitHub API for latest release info. Returns None on failure."""
     url = f"https://api.github.com/repos/{repo}/releases/latest"
     req = urllib.request.Request(
@@ -62,40 +84,57 @@ def fetch_latest_release(repo: str, timeout: float = 5.0) -> ReleaseInfo | None:
     html_url = data.get("html_url", "")
     body = data.get("body", "") or ""
 
+    architecture = _release_architecture(machine or platform.machine())
+    expected_name = f"mikanpet-portable-{architecture}.zip"
     zip_url: str | None = None
+    zip_sha256: str | None = None
     assets = data.get("assets", [])
-    # Find portable zip asset
     for asset in assets:
         name = asset.get("name", "").lower()
-        if name.endswith("portable-x64.zip"):
+        if name == expected_name:
             zip_url = asset.get("browser_download_url")
+            zip_sha256 = _asset_sha256(asset)
             break
-    if zip_url is None:
-        for asset in assets:
-            name = asset.get("name", "").lower()
-            if name.endswith(".zip"):
-                zip_url = asset.get("browser_download_url")
-                break
 
     return ReleaseInfo(
         version=version,
         tag_name=tag_name,
         zip_url=zip_url,
+        zip_sha256=zip_sha256,
         html_url=html_url,
         release_notes=body,
     )
 
 
-def download_and_extract_update(zip_url: str, target_dir: Path, timeout: float = 30.0) -> None:
-    """Download portable release zip and extract into target directory."""
+def download_and_extract_update(
+    zip_url: str,
+    target_dir: Path,
+    expected_sha256: str,
+    timeout: float = 30.0,
+) -> None:
+    """Download, authenticate, and safely extract a portable release archive."""
     import zipfile
 
-    target_dir.mkdir(parents=True, exist_ok=True)
+    expected_sha256 = expected_sha256.strip().lower()
+    if len(expected_sha256) != 64 or any(c not in "0123456789abcdef" for c in expected_sha256):
+        raise ValueError("invalid SHA-256 checksum for update")
     req = urllib.request.Request(zip_url, headers={"User-Agent": "MikanPet-Updater"})
     with urllib.request.urlopen(req, timeout=timeout) as resp:
         zip_bytes = resp.read()
+    actual_sha256 = hashlib.sha256(zip_bytes).hexdigest()
+    if actual_sha256 != expected_sha256:
+        raise ValueError("update checksum verification failed")
 
     with zipfile.ZipFile(io.BytesIO(zip_bytes)) as zf:
+        target_root = target_dir.resolve()
+        for member in zf.infolist():
+            destination = (target_root / member.filename).resolve()
+            if not destination.is_relative_to(target_root):
+                raise ValueError(f"update archive contains unsafe path: {member.filename}")
+            unix_mode = (member.external_attr >> 16) & 0xFFFF
+            if stat.S_ISLNK(unix_mode):
+                raise ValueError(f"update archive contains unsafe symlink: {member.filename}")
+        target_dir.mkdir(parents=True, exist_ok=True)
         zf.extractall(target_dir)
 
 

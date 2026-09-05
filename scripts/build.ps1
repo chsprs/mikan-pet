@@ -1,7 +1,12 @@
 [CmdletBinding()]
 param(
     [string]$Python = (Get-Command python -ErrorAction Stop).Source,
-    [switch]$SkipInstaller
+    [ValidateSet('x64', 'arm64')]
+    [string]$Architecture = 'x64',
+    [switch]$SkipInstaller,
+    [string]$SigningCertificatePath = '',
+    [string]$SigningCertificatePassword = '',
+    [string]$TimestampUrl = 'http://timestamp.digicert.com'
 )
 
 $ErrorActionPreference = "Stop"
@@ -56,6 +61,44 @@ function Find-Iscc {
     return $uniqueCandidates[0]
 }
 
+function Find-SignTool {
+    $command = Get-Command signtool.exe -ErrorAction SilentlyContinue
+    if ($command) {
+        return $command.Source
+    }
+    $kitsRoot = 'C:\Program Files (x86)\Windows Kits\10\bin'
+    if (-not (Test-Path -LiteralPath $kitsRoot)) {
+        throw 'signtool.exe was not found in PATH or the Windows SDK.'
+    }
+    $toolArchitecture = if ($Architecture -eq 'arm64') { 'arm64' } else { 'x64' }
+    $candidate = Get-ChildItem -LiteralPath $kitsRoot -Filter signtool.exe -File -Recurse |
+        Where-Object { $_.Directory.Name -eq $toolArchitecture } |
+        Sort-Object FullName -Descending |
+        Select-Object -First 1
+    if (-not $candidate) {
+        throw "signtool.exe for $toolArchitecture was not found in the Windows SDK."
+    }
+    return $candidate.FullName
+}
+
+function Invoke-CodeSigning([string]$Target) {
+    if (-not $SigningCertificatePath) {
+        return
+    }
+    if (-not (Test-Path -LiteralPath $SigningCertificatePath)) {
+        throw "Signing certificate was not found: $SigningCertificatePath"
+    }
+    $signTool = Find-SignTool
+    & $signTool sign /fd SHA256 /tr $TimestampUrl /td SHA256 /f $SigningCertificatePath /p $SigningCertificatePassword $Target
+    if ($LASTEXITCODE -ne 0) {
+        throw "Authenticode signing failed for: $Target"
+    }
+    & $signTool verify /pa $Target
+    if ($LASTEXITCODE -ne 0) {
+        throw "Authenticode verification failed for: $Target"
+    }
+}
+
 Push-Location $ProjectRoot
 try {
     $pythonInfo = & $Python -c 'import platform, struct, sys; print(str(struct.calcsize(chr(80)) * 8), platform.machine(), sys.version, sep=chr(124))'
@@ -63,27 +106,36 @@ try {
         throw "Could not inspect selected Python interpreter: $Python"
     }
     $parts = $pythonInfo -split '\|', 3
-    if ($parts.Count -ne 3 -or $parts[0] -ne '64' -or $parts[1].ToUpperInvariant() -notin @('AMD64', 'X86_64')) {
-        throw "Selected Python must be a 64-bit AMD64/x86_64 interpreter; got: $pythonInfo"
+    $expectedMachines = if ($Architecture -eq 'arm64') { @('ARM64', 'AARCH64') } else { @('AMD64', 'X86_64') }
+    if ($parts.Count -ne 3 -or $parts[0] -ne '64' -or $parts[1].ToUpperInvariant() -notin $expectedMachines) {
+        throw "Selected Python must be a 64-bit $Architecture interpreter; got: $pythonInfo"
     }
     Write-Host "Python: $Python ($($parts[1]), $($parts[2]))"
 
     Invoke-Checked $Python @('-m', 'unittest', 'discover', '-s', 'tests', '-v')
-    Invoke-Checked $Python @((Join-Path $ProjectRoot 'scripts\generate_icon.py'))
-
     $buildDirectory = Join-Path $ProjectRoot 'build'
     $applicationDirectory = Join-Path $ProjectRoot 'dist\MikanPet'
-    $portableZip = Join-Path $ProjectRoot 'dist\MikanPet-portable-x64.zip'
-    $installer = Join-Path $ProjectRoot 'dist\MikanPet-Setup-x64.exe'
+    $portableZip = Join-Path $ProjectRoot "dist\MikanPet-portable-$Architecture.zip"
+    $installer = Join-Path $ProjectRoot "dist\MikanPet-Setup-$Architecture.exe"
     $specFile = Join-Path $ProjectRoot 'MikanPet.spec'
     foreach ($target in @($buildDirectory, $applicationDirectory, $portableZip, $installer, $specFile)) {
         Remove-RepositoryItem $target
     }
 
+    Invoke-Checked $Python @((Join-Path $ProjectRoot 'scripts\generate_icon.py'))
+    $appVersion = (& $Python -c "import mikan_pet; print(mikan_pet.__version__)").Trim()
+    $versionInfoFile = Join-Path $buildDirectory 'MikanPet-version-info.txt'
+    Invoke-Checked $Python @(
+        (Join-Path $ProjectRoot 'scripts\generate_version_info.py'),
+        $appVersion,
+        $versionInfoFile
+    )
+
     Invoke-Checked $Python @(
         '-m', 'PyInstaller', '--noconfirm', '--clean', '--onedir', '--windowed', '--name', 'MikanPet',
         '--hidden-import', 'win32gui', '--hidden-import', 'win32con',
         '--paths', $ProjectRoot, '--manifest', (Join-Path $ProjectRoot 'packaging\MikanPet.manifest'),
+        '--version-file', $versionInfoFile,
         '--icon', (Join-Path $ProjectRoot 'assets\MikanPet.ico'), (Join-Path $ProjectRoot 'mikan_pet\__main__.py')
     )
 
@@ -100,10 +152,17 @@ try {
         throw "Built executable has an invalid PE header: $executable"
     }
     $machine = [BitConverter]::ToUInt16($bytes, $peOffset + 4)
-    if ($machine -ne 0x8664) {
-        throw ('Built executable must have PE Machine 0x8664; got 0x{0:X4}' -f $machine)
+    $expectedPeMachine = if ($Architecture -eq 'arm64') { 0xAA64 } else { 0x8664 }
+    if ($machine -ne $expectedPeMachine) {
+        throw ('Built executable must have PE Machine 0x{0:X4}; got 0x{1:X4}' -f $expectedPeMachine, $machine)
     }
     Write-Host ('PE Machine: 0x{0:X4}' -f $machine)
+    [IO.File]::WriteAllText(
+        (Join-Path $applicationDirectory 'version.txt'),
+        "$appVersion`r`n",
+        [Text.Encoding]::ASCII
+    )
+    Invoke-CodeSigning $executable
     Invoke-Checked $executable @('--smoke-test')
     Invoke-Checked $Python @((Join-Path $ProjectRoot 'scripts\verify_gui_smoke.py'), $executable)
 
@@ -114,11 +173,16 @@ try {
 
     if (-not $SkipInstaller) {
         $iscc = Find-Iscc
-        $appVersion = (& $Python -c "import mikan_pet; print(mikan_pet.__version__)").Trim()
-        Invoke-Checked $iscc @("/DMyAppVersion=$appVersion", '/Qp', (Join-Path $ProjectRoot 'installer\MikanPet.iss'))
+        Invoke-Checked $iscc @(
+            "/DMyAppVersion=$appVersion",
+            "/DMyArchitecture=$Architecture",
+            '/Qp',
+            (Join-Path $ProjectRoot 'installer\MikanPet.iss')
+        )
         if (-not (Test-Path -LiteralPath $installer) -or (Get-Item -LiteralPath $installer).Length -le 0) {
             throw "Installer was not created: $installer"
         }
+        Invoke-CodeSigning $installer
     }
 
     $portableHash = (Get-FileHash -LiteralPath $portableZip -Algorithm SHA256).Hash

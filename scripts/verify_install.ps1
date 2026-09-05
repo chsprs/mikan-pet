@@ -1,6 +1,8 @@
 [CmdletBinding()]
 param(
-    [string]$Repo = "chsprs/mikan-pet"
+    [string]$Repo = "chsprs/mikan-pet",
+    [string]$ExecutablePath = "",
+    [string]$LatestVersion = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -17,10 +19,16 @@ $installCandidates = @(
 )
 
 $detectedExe = $null
-foreach ($candidate in $installCandidates) {
-    if (Test-Path -LiteralPath $candidate) {
-        $detectedExe = (Resolve-Path -LiteralPath $candidate).Path
-        break
+if ($ExecutablePath) {
+    if (Test-Path -LiteralPath $ExecutablePath) {
+        $detectedExe = (Resolve-Path -LiteralPath $ExecutablePath).Path
+    }
+} else {
+    foreach ($candidate in $installCandidates) {
+        if (Test-Path -LiteralPath $candidate) {
+            $detectedExe = (Resolve-Path -LiteralPath $candidate).Path
+            break
+        }
     }
 }
 
@@ -61,33 +69,37 @@ if ($running) {
 
 # 4. Ambil versi rilis terbaru dari GitHub API
 Write-Host "`n--> Memeriksa rilis terbaru dari GitHub (https://github.com/$Repo)..." -ForegroundColor Cyan
-try {
-    $apiUrl = "https://api.github.com/repos/$Repo/releases/latest"
-    $headers = @{ "User-Agent" = "MikanPet-Verifier" }
-    $response = Invoke-RestMethod -Uri $apiUrl -Headers $headers -TimeoutSec 10
-    $githubTag = $response.tag_name
-    $githubVersion = $githubTag.TrimStart('v', 'V')
-    $githubHtml = $response.html_url
-    $publishedAt = $response.published_at
-    Write-Host "[+] Rilis terbaru di GitHub : $githubTag (Dipublikasikan: $publishedAt)" -ForegroundColor Green
-} catch {
-    Write-Host "[!] Gagal mengambil data rilis dari GitHub API: $_" -ForegroundColor Red
-    exit 1
-}
-
-# 5. Dapatkan versi lokal terpasang
-# Coba baca dari pyproject.toml repo jika development, atau dari python di _internal
-$localVersion = $null
-$pyprojectPath = Join-Path $PSScriptRoot "..\pyproject.toml"
-if (Test-Path -LiteralPath $pyprojectPath) {
-    $match = Select-String -Path $pyprojectPath -Pattern 'version\s*=\s*"([^"]+)"'
-    if ($match) {
-        $localVersion = $match.Matches[0].Groups[1].Value
+if ($LatestVersion) {
+    $githubVersion = $LatestVersion.Trim().TrimStart('v', 'V')
+    $githubTag = "v$githubVersion"
+    $githubHtml = "https://github.com/$Repo/releases/tag/$githubTag"
+    Write-Host "[+] Versi pembanding : $githubTag" -ForegroundColor Green
+} else {
+    try {
+        $apiUrl = "https://api.github.com/repos/$Repo/releases/latest"
+        $headers = @{ "User-Agent" = "MikanPet-Verifier" }
+        $response = Invoke-RestMethod -Uri $apiUrl -Headers $headers -TimeoutSec 10
+        $githubTag = $response.tag_name
+        $githubVersion = $githubTag.TrimStart('v', 'V')
+        $githubHtml = $response.html_url
+        $publishedAt = $response.published_at
+        Write-Host "[+] Rilis terbaru di GitHub : $githubTag (Dipublikasikan: $publishedAt)" -ForegroundColor Green
+    } catch {
+        Write-Host "[!] Gagal mengambil data rilis dari GitHub API: $_" -ForegroundColor Red
+        exit 1
     }
 }
 
-if (-not $localVersion) {
-    $localVersion = $githubVersion
+# 5. Dapatkan versi lokal terpasang
+$versionFile = Join-Path (Split-Path -Parent $detectedExe) "version.txt"
+$localVersion = if (Test-Path -LiteralPath $versionFile) {
+    (Get-Content -LiteralPath $versionFile -Raw).Trim()
+} else {
+    $item.VersionInfo.ProductVersion
+}
+if (-not $localVersion -or $localVersion -notmatch '^\d+\.\d+\.\d+(?:\.\d+)?$') {
+    Write-Host "[X] GAGAL: Versi aplikasi terpasang tidak dapat diverifikasi." -ForegroundColor Red
+    exit 1
 }
 
 # 6. Bandingkan versi lokal dan GitHub

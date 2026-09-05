@@ -34,6 +34,15 @@ def _find_iscc() -> Path | None:
 
 
 class PackagingContractTests(unittest.TestCase):
+    def test_version_info_generator_embeds_product_version(self) -> None:
+        from scripts.generate_version_info import render_version_info
+
+        rendered = render_version_info("1.2.3")
+
+        self.assertIn("filevers=(1, 2, 3, 0)", rendered)
+        self.assertIn("prodvers=(1, 2, 3, 0)", rendered)
+        self.assertIn("StringStruct('ProductVersion', '1.2.3')", rendered)
+
     def test_manifest_declares_as_invoker_per_monitor_dpi(self) -> None:
         root = ElementTree.parse(ROOT / "packaging" / "MikanPet.manifest").getroot()
         execution = root.find(".//asmv3:requestedExecutionLevel", MANIFEST_NS)
@@ -90,6 +99,29 @@ class PackagingContractTests(unittest.TestCase):
             installer = output_dir / f"{output_name}.exe"
             self.assertTrue(installer.is_file())
             self.assertGreater(installer.stat().st_size, 0)
+
+    def test_inno_default_output_name_includes_selected_architecture(self) -> None:
+        iscc = _find_iscc()
+        if iscc is None:
+            self.skipTest("ISCC.exe is not installed")
+        if not (ROOT / "dist" / "MikanPet" / "MikanPet.exe").is_file():
+            self.skipTest("MikanPet package input is not built yet")
+        with tempfile.TemporaryDirectory(prefix="mikan-pet-inno-name-") as directory:
+            result = subprocess.run(
+                [
+                    str(iscc),
+                    "/Qp",
+                    "/DMyArchitecture=x64",
+                    f"/O{directory}",
+                    str(ROOT / "installer" / "MikanPet.iss"),
+                ],
+                cwd=ROOT,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+            self.assertTrue((Path(directory) / "MikanPet-Setup-x64.exe").is_file())
 
 
 if __name__ == "__main__":

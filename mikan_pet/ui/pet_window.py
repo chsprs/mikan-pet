@@ -393,16 +393,26 @@ class PetWindow:
                 if not should_update:
                     return
 
-                if not release.zip_url:
+                if not release.zip_url or not release.zip_sha256:
                     import webbrowser
                     webbrowser.open(release.html_url)
+                    messagebox.showwarning(
+                        "Mikan Pet - Pembaruan Manual Diperlukan",
+                        "Paket pembaruan otomatis yang aman tidak tersedia.\n"
+                        "Halaman rilis resmi telah dibuka untuk pembaruan manual.",
+                        parent=self.root,
+                    )
                     return
 
                 def download_worker() -> None:
                     try:
                         import tempfile
                         staging_dir = Path(tempfile.gettempdir()) / f"mikan_update_{release.version}"
-                        download_and_extract_update(release.zip_url, staging_dir)
+                        download_and_extract_update(
+                            release.zip_url,
+                            staging_dir,
+                            expected_sha256=release.zip_sha256,
+                        )
                         app_dir = Path(sys.executable).resolve().parent
                         exe_path = app_dir / "MikanPet.exe"
                         if not exe_path.exists():

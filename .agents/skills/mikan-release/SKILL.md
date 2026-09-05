@@ -110,9 +110,10 @@ Setiap kali versi aplikasi dinaikkan, 4 berkas berikut **wajib sama persis**:
 ## Verification Checklist
 
 Sebelum menyatakan rilis selesai ke pengguna:
-- [ ] Semua 169 unit test lolos di lokal.
+- [ ] Semua unit test lolos di lokal.
 - [ ] Empat file versi sinkron di angka versi yang sama.
 - [ ] Komit dan tag `vX.Y.Z` sudah ada di GitHub (`git push origin main --tags`).
 - [ ] Workflow GitHub Actions berstatus hijau / `[ok]` (`gh run list`).
-- [ ] Halaman rilis GitHub memuat berkas `MikanPet-Setup-x64.exe` dan `MikanPet-portable-x64.zip`.
+- [ ] Halaman rilis GitHub memuat installer dan portable ZIP untuk x64 serta ARM64, plus `SHA256SUMS.txt`.
 - [ ] Catatan rilis di GitHub memuat ringkasan fitur & komit yang jelas.
+- [ ] Provenance attestation tersedia dan smoke install/launch/uninstall kedua arsitektur berstatus hijau.

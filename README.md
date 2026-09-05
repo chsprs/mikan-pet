@@ -4,7 +4,7 @@ Mikan Pet adalah kucing pixel-art kecil yang berjalan di atas jendela biasa dan 
 
 ## Instalasi
 
-1. Jalankan `MikanPet-Setup-x64.exe`.
+1. Jalankan `MikanPet-Setup-x64.exe` pada Windows x64, atau `MikanPet-Setup-arm64.exe` pada Windows 11 ARM64.
 2. Ikuti wizard dan, bila diinginkan, pilih shortcut Desktop opsional.
 3. Buka **Mikan Pet** dari Start Menu.
 
@@ -12,7 +12,7 @@ Installer memasang aplikasi untuk pengguna saat ini dan tidak memerlukan Python 
 
 ## Versi portabel
 
-Ekstrak **semua** isi `MikanPet-portable-x64.zip` ke satu folder terlebih dahulu, lalu jalankan `MikanPet.exe` dari folder hasil ekstrak. Jangan menjalankan EXE langsung dari dalam arsip ZIP.
+Ekstrak **semua** isi `MikanPet-portable-x64.zip` atau `MikanPet-portable-arm64.zip` yang sesuai dengan perangkat ke satu folder terlebih dahulu, lalu jalankan `MikanPet.exe` dari folder hasil ekstrak. Jangan menjalankan EXE langsung dari dalam arsip ZIP.
 
 ## Kontrol & Fitur
 
@@ -22,7 +22,7 @@ Ekstrak **semua** isi `MikanPet-portable-x64.zip` ke satu folder terlebih dahulu
 - Tiga tombol media adalah **sebelumnya**, **putar/jeda**, dan **berikutnya**. Windows meneruskannya ke sesi media aktif.
 - **Judul Lagu yang Diputar**: Mikan Pet secara otomatis mendeteksi sesi media Windows (GSMTC) dan menampilkan judul lagu beserta artis dalam gelembung mini di atas kucing.
 - **Animasi Tidur Zzzz**: Ketika kucing tertidur (`SLEEP`), animasi huruf "Z" pixel-art naik secara prosedural.
-- **Pembaruan Otomatis In-Place**: Klik kanan dan pilih **Periksa Pembaruan** untuk mengecek versi baru di GitHub Releases dan memperbarui aplikasi secara otomatis tanpa perlu menjalankan installer setup ulang.
+- **Pembaruan Otomatis In-Place**: Klik kanan dan pilih **Periksa Pembaruan** untuk mengecek versi baru di GitHub Releases dan memperbarui aplikasi secara otomatis tanpa perlu menjalankan installer setup ulang. Paket dipilih sesuai arsitektur dan checksum SHA-256 diverifikasi sebelum diekstrak.
 
 ## Skin
 
@@ -46,7 +46,7 @@ Preferensi, posisi, skin, status berjalan, gelembung kontrol, dan Always on top 
 
 ## Catatan keamanan
 
-Build pengembangan lokal ini **tidak ditandatangani**. Windows SmartScreen dapat menampilkan peringatan **Unknown publisher** sebelum instalasi atau eksekusi. Tidak ada klaim bahwa installer atau EXE ini memiliki tanda tangan kode; gunakan hanya artefak dari sumber yang Anda percayai.
+Build rilis hanya ditandatangani Authenticode bila maintainer telah mengonfigurasi secret `WINDOWS_CERT_BASE64` dan `WINDOWS_CERT_PASSWORD` di GitHub Actions. Tanpa sertifikat tersebut, Windows SmartScreen dapat menampilkan peringatan **Unknown publisher**. Setiap rilis tetap menyediakan `SHA256SUMS.txt` dan provenance attestation untuk verifikasi paket.
 
 ## Pengembangan dan build
 
@@ -57,10 +57,10 @@ py -3 -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r requirements-build.txt
 .\.venv\Scripts\python.exe -m unittest discover -s tests -v
 .\.venv\Scripts\python.exe -m mikan_pet
-.\scripts\build.ps1 -Python '.\.venv\Scripts\python.exe'
+.\scripts\build.ps1 -Python '.\.venv\Scripts\python.exe' -Architecture x64
 ```
 
-Output build berada di `dist\MikanPet-Setup-x64.exe` dan `dist\MikanPet-portable-x64.zip`.
+Output x64 berada di `dist\MikanPet-Setup-x64.exe` dan `dist\MikanPet-portable-x64.zip`. Build ARM64 dijalankan pada Windows ARM64 dengan `-Architecture arm64` dan menghasilkan nama berakhiran `-arm64`.
 
 ## Alur Rilis & Push GitHub
 
@@ -81,4 +81,4 @@ Detail dan panduan lengkap dapat dilihat pada skill `.agents/skills/mikan-releas
 
 ## Sistem yang didukung
 
-Target paket adalah Windows 10 dan Windows 11 x64. Windows 11 pada ARM dapat menjalankan paket x64 melalui emulasi Windows; paket ARM64 native bukan bagian dari rilis ini. Windows 7/8, Windows 32-bit, macOS, dan Linux tidak didukung.
+Target paket adalah Windows 10/11 x64 dan Windows 11 ARM64 native. Paket x64 juga dapat berjalan melalui emulasi pada Windows 11 ARM. Windows 7/8, Windows 32-bit, macOS, dan Linux tidak didukung.

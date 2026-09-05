@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from urllib.error import URLError
 
-DEFAULT_GITHUB_REPO = os.getenv("MIKAN_PET_REPO", "owner/mikan-pet")
+DEFAULT_GITHUB_REPO = os.getenv("MIKAN_PET_REPO", "chsprs/mikan-pet")
 
 
 @dataclass(frozen=True)

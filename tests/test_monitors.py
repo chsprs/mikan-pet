@@ -129,7 +129,7 @@ class MonitorBackendTests(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "no monitors"):
             MonitorService(backend).refresh()
 
-    def test_empty_refresh_clears_monitors_from_successful_previous_refresh(self) -> None:
+    def test_empty_refresh_retains_monitors_from_successful_previous_refresh(self) -> None:
         backend = Mock()
         backend.enumerate.side_effect = [[MONITOR_1], []]
         service = MonitorService(backend)
@@ -137,8 +137,7 @@ class MonitorBackendTests(unittest.TestCase):
 
         with self.assertRaisesRegex(RuntimeError, "no monitors"):
             service.refresh()
-        with self.assertRaisesRegex(ValueError, "at least one monitor"):
-            service.primary()
+        self.assertEqual(MONITOR_1, service.primary())
 
 
 class WindowsDpiAwarenessBackendTests(unittest.TestCase):

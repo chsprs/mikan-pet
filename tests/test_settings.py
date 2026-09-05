@@ -2,8 +2,9 @@ import json
 import os
 import tempfile
 import unittest
+from contextlib import contextmanager
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 from mikan_pet.core.types import Point, SkinId
 from mikan_pet.services.settings import AppSettings, SettingsStore, default_settings, settings_path
@@ -115,6 +116,25 @@ class SettingsStoreTests(unittest.TestCase):
             path.write_text("old", encoding="utf-8")
             with patch("mikan_pet.services.settings.os.fsync", side_effect=OSError("disk full")):
                 with self.assertRaises(OSError):
+                    SettingsStore(path).save(default_settings())
+            self.assertEqual("old", path.read_text(encoding="utf-8"))
+            self.assertFalse(path.with_name("settings.tmp").exists())
+
+    def test_failed_flush_cleans_temp_and_preserves_final_file(self) -> None:
+        real_open = Path.open
+
+        @contextmanager
+        def open_with_failing_flush(path, *args, **kwargs):
+            with real_open(path, *args, **kwargs) as handle:
+                proxy = Mock(wraps=handle)
+                proxy.flush.side_effect = OSError("flush failed")
+                yield proxy
+
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "settings.json"
+            path.write_text("old", encoding="utf-8")
+            with patch.object(Path, "open", open_with_failing_flush):
+                with self.assertRaisesRegex(OSError, "flush failed"):
                     SettingsStore(path).save(default_settings())
             self.assertEqual("old", path.read_text(encoding="utf-8"))
             self.assertFalse(path.with_name("settings.tmp").exists())

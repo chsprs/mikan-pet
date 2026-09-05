@@ -1,5 +1,6 @@
 from dataclasses import dataclass, replace
 
+from mikan_pet.core.geometry import clamp_position
 from mikan_pet.core.types import Direction, MotionMode, Point, Pose, Size, SkinId, WorkArea
 
 
@@ -80,7 +81,7 @@ class PetController:
         self._movement_remainder = distance - pixels
         delta = pixels * self.state.direction.value
         minimum = area.left
-        maximum = area.right - pet_size.width
+        maximum = max(minimum, area.right - pet_size.width)
         candidate = self.state.position.x + delta
         direction = self.state.direction
         if candidate <= minimum:
@@ -89,9 +90,8 @@ class PetController:
         elif candidate >= maximum:
             candidate, direction = maximum, Direction.LEFT
             self._movement_remainder = 0.0
-        maximum_y = area.bottom - pet_size.height
-        y = min(max(self.state.position.y, area.top), maximum_y)
-        self.state = replace(self.state, position=Point(candidate, y), direction=direction)
+        position = clamp_position(Point(candidate, self.state.position.y), pet_size, area)
+        self.state = replace(self.state, position=position, direction=direction)
 
     def toggle_walking(self) -> None:
         if self.state.motion is MotionMode.STOPPED:
@@ -110,9 +110,7 @@ class PetController:
         self.state = replace(self.state, position=position)
 
     def place_within(self, area: WorkArea, pet_size: Size) -> None:
-        x = min(max(self.state.position.x, area.left), area.right - pet_size.width)
-        y = min(max(self.state.position.y, area.top), area.bottom - pet_size.height)
-        self.state = replace(self.state, position=Point(x, y))
+        self.state = replace(self.state, position=clamp_position(self.state.position, pet_size, area))
 
     def end_drag(self) -> None:
         motion = self._pre_drag_motion

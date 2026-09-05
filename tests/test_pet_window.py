@@ -181,7 +181,7 @@ class PetWindowTests(unittest.TestCase):
         window._on_pet_motion(event_at(-50, 310))
         self.assertEqual(MotionMode.DRAGGING, controller.state.motion)
         self.assertEqual(Point(-60, 300), controller.state.position)
-        self.assertEqual("200x208-88+220", root.geometries[-1])
+        self.assertEqual("200x208+-88+220", root.geometries[-1])
 
     def test_drag_release_uses_release_pointer_then_clamps_and_restores_mode(self) -> None:
         window, _, controller, _, _, settings, _ = self.make_window(motion=MotionMode.STOPPED)
@@ -215,7 +215,7 @@ class PetWindowTests(unittest.TestCase):
         self.assertFalse(controller.state.always_on_top)
         self.assertIn(("-topmost", False), root.attributes)
         window._reset_position()
-        self.assertEqual(Point(632, 448), controller.state.position)
+        self.assertEqual(Point(628, 448), controller.state.position)
         self.assertEqual(3, len(settings))
 
     def test_skin_change_keeps_current_animation_phase(self) -> None:

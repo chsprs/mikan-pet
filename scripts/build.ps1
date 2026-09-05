@@ -58,7 +58,7 @@ function Find-Iscc {
 
 Push-Location $ProjectRoot
 try {
-    $pythonInfo = & $Python -c 'import platform, struct, sys; print(str(struct.calcsize("P") * 8) + "|" + platform.machine() + "|" + sys.version)'
+    $pythonInfo = & $Python -c 'import platform, struct, sys; print(str(struct.calcsize(chr(80)) * 8), platform.machine(), sys.version, sep=chr(124))'
     if ($LASTEXITCODE -ne 0) {
         throw "Could not inspect selected Python interpreter: $Python"
     }
@@ -82,6 +82,7 @@ try {
 
     Invoke-Checked $Python @(
         '-m', 'PyInstaller', '--noconfirm', '--clean', '--onedir', '--windowed', '--name', 'MikanPet',
+        '--hidden-import', 'win32gui', '--hidden-import', 'win32con',
         '--paths', $ProjectRoot, '--manifest', (Join-Path $ProjectRoot 'packaging\MikanPet.manifest'),
         '--icon', (Join-Path $ProjectRoot 'assets\MikanPet.ico'), (Join-Path $ProjectRoot 'mikan_pet\__main__.py')
     )
@@ -104,6 +105,7 @@ try {
     }
     Write-Host ('PE Machine: 0x{0:X4}' -f $machine)
     Invoke-Checked $executable @('--smoke-test')
+    Invoke-Checked $Python @((Join-Path $ProjectRoot 'scripts\verify_gui_smoke.py'), $executable)
 
     Compress-Archive -Path (Join-Path $applicationDirectory '*') -DestinationPath $portableZip -Force
     if (-not (Test-Path -LiteralPath $portableZip) -or (Get-Item -LiteralPath $portableZip).Length -le 0) {

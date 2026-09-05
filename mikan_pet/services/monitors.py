@@ -4,10 +4,12 @@ from __future__ import annotations
 
 import ctypes
 import importlib
+import time
 from dataclasses import dataclass
 from typing import Protocol, Sequence
 
 from mikan_pet.core.types import Point, Size, WorkArea
+from mikan_pet.core.geometry import clamp_position
 
 
 @dataclass(frozen=True)
@@ -34,16 +36,6 @@ def intersection_area(position: Point, pet_size: Size, area: WorkArea) -> int:
     width = max(0, min(position.x + pet_size.width, area.right) - max(position.x, area.left))
     height = max(0, min(position.y + pet_size.height, area.bottom) - max(position.y, area.top))
     return width * height
-
-
-def clamp_position(position: Point, pet_size: Size, area: WorkArea) -> Point:
-    """Keep the pet in ``area``, anchoring oversized pets at its top-left."""
-    maximum_x = max(area.left, area.right - pet_size.width)
-    maximum_y = max(area.top, area.bottom - pet_size.height)
-    return Point(
-        min(max(position.x, area.left), maximum_x),
-        min(max(position.y, area.top), maximum_y),
-    )
 
 
 def default_position(area: WorkArea, pet_size: Size, margin: int) -> Point:
@@ -176,28 +168,48 @@ def enable_per_monitor_dpi_awareness(backend: DpiAwarenessBackend | None = None)
 
 
 class MonitorService:
+    REFRESH_INTERVAL_SECONDS = 1.0
+
     def __init__(self, backend: MonitorBackend) -> None:
         self._backend = backend
         self._monitors: list[MonitorInfo] = []
+        self._last_refresh_attempt: float | None = None
 
     def refresh(self) -> list[MonitorInfo]:
+        self._last_refresh_attempt = time.monotonic()
         monitors = list(self._backend.enumerate())
-        self._monitors = monitors
         if not monitors:
             raise RuntimeError("Windows returned no monitors")
+        self._monitors = monitors
         return self._monitors
 
+    def _refresh_if_due(self) -> None:
+        """Bound OS queries and retain usable topology during display transitions."""
+        if (self._last_refresh_attempt is None or
+                time.monotonic() - self._last_refresh_attempt >= self.REFRESH_INTERVAL_SECONDS):
+            try:
+                self.refresh()
+            except Exception:
+                # A temporary EnumDisplayMonitors/GetMonitorInfo failure must
+                # not stop animation. Initial discovery still fails explicitly.
+                if not self._monitors:
+                    raise
+
     def primary(self) -> MonitorInfo:
+        self._refresh_if_due()
         _require_monitors(self._monitors)
         return _primary_or_first(self._monitors)
 
     def current_for(self, position: Point, pet_size: Size) -> MonitorInfo:
+        self._refresh_if_due()
         return select_monitor(position, pet_size, self._monitors)
 
     def drag_target(self, position: Point, pet_size: Size, last_intersected_id: str | None) -> MonitorInfo:
+        self._refresh_if_due()
         return select_drag_monitor(position, pet_size, self._monitors, last_intersected_id)
 
     def recover_position(self, saved_position: Point, pet_size: Size) -> Point:
+        self._refresh_if_due()
         monitor = select_monitor(saved_position, pet_size, self._monitors)
         if intersection_area(saved_position, pet_size, monitor.work_area) > 0:
             return clamp_position(saved_position, pet_size, monitor.work_area)

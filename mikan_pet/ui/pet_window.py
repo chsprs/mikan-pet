@@ -123,6 +123,7 @@ class PetWindow:
         self._build_menu()
         self._build_canvas_items()
         self._bind_canvas_events()
+        self._reconcile_position()
         self._apply_window_layout()
         self.root.report_callback_exception = self._report_callback_exception
         self._last_tick_ns = time.monotonic_ns()
@@ -347,6 +348,7 @@ class PetWindow:
         margin = self._scale(24)
         self.controller.drag_to(default_position(primary.work_area, self.metrics.pet_size, margin))
         self.last_intersected_id = primary.id
+        self._reconcile_position()
         self._apply_window_layout()
         self._settings_changed()
 
@@ -384,11 +386,27 @@ class PetWindow:
             "controls",
             state="normal" if state.controls_visible else "hidden",
         )
-        self.root.geometry(f"{size.width}x{size.height}{origin.x:+d}{origin.y:+d}")
+        # Tk's bare '-N' means distance from the far screen edge. '+-N'
+        # expresses a negative absolute desktop coordinate (left/above primary).
+        self.root.geometry(f"{size.width}x{size.height}+{origin.x}+{origin.y}")
 
     def _schedule_tick(self) -> None:
         if not self._closing:
             self._after_id = self.root.after(TICK_MS, self._tick)
+
+    def _reconcile_position(self) -> None:
+        """Keep the complete window safe without changing motion or pose timers."""
+        state = self.controller.state
+        if state.motion is MotionMode.DRAGGING:
+            return
+        position = self.monitor_service.recover_position(state.position, self.metrics.pet_size)
+        target = self.monitor_service.current_for(position, self.metrics.pet_size)
+        self.controller.drag_to(position)
+        self.controller.place_within(
+            safe_pet_work_area(target.work_area, state.controls_visible, self.metrics),
+            self.metrics.pet_size,
+        )
+        self.last_intersected_id = target.id
 
     def _tick(self) -> None:
         if self._closing:
@@ -396,6 +414,7 @@ class PetWindow:
         now = time.monotonic_ns()
         elapsed_ms = min(MAX_TICK_MS, max(0, (now - self._last_tick_ns) // 1_000_000))
         self._last_tick_ns = now
+        self._reconcile_position()
         state = self.controller.state
         active = self.monitor_service.current_for(state.position, self.metrics.pet_size)
         movement_area = safe_pet_work_area(
@@ -461,6 +480,7 @@ class PetWindow:
         self._apply_window_layout()
 
     def snapshot_settings(self) -> AppSettings:
+        self._reconcile_position()
         state = self.controller.state
         monitor = self.monitor_service.current_for(state.position, self.metrics.pet_size)
         return AppSettings(

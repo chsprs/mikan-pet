@@ -7,6 +7,13 @@ import importlib
 from collections.abc import Callable
 from typing import Protocol
 
+try:
+    import win32con
+    import win32gui
+except ImportError:
+    win32con = None
+    win32gui = None
+
 
 WM_DPICHANGED = 0x02E0
 DEFAULT_DPI = 96
@@ -54,8 +61,8 @@ class Win32DpiBackend:
         win32con_module: object | None = None,
         user32: object | None = None,
     ) -> None:
-        self._win32gui = win32gui_module or importlib.import_module("win32gui")
-        self._win32con = win32con_module or importlib.import_module("win32con")
+        self._win32gui = win32gui_module or win32gui or importlib.import_module("win32gui")
+        self._win32con = win32con_module or win32con or importlib.import_module("win32con")
         self._user32 = user32 or ctypes.WinDLL("user32", use_last_error=True)
         self._set_window_long_ptr = getattr(self._user32, "SetWindowLongPtrW", None)
         if self._set_window_long_ptr is not None:
@@ -128,7 +135,7 @@ class Win32DpiBackend:
     def restore_subclass(self) -> None:
         if self._previous_proc is None or self._hwnd is None:
             return
-        if isinstance(self._previous_proc, int) and self._set_window_long_ptr is not None:
+        if type(self._previous_proc) is int and self._set_window_long_ptr is not None:
             ctypes.set_last_error(0)
             result = self._set_window_long_ptr(
                 self._hwnd,

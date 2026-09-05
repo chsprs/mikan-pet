@@ -113,8 +113,20 @@ _SLEEP_BASE = (
     _r(16, 20, 2, 1, ColorRole.DARK), _r(8, 22, 7, 2, ColorRole.LIGHT),
     _r(10, 24, 10, 2, ColorRole.COLLAR), _r(14, 25, 2, 2, ColorRole.COLLAR),
 )
-_SLEEP = (_with(_SLEEP_BASE, _r(28, 17, 2, 3, ColorRole.SHADE)),
-          _with(_SLEEP_BASE, _r(29, 17, 1, 3, ColorRole.SHADE)))
+def _z(x: int, y: int, role: ColorRole = ColorRole.LIGHT) -> tuple[PixelRect, ...]:
+    return (_r(x, y, 3, 1, role), _r(x + 1, y + 1, 1, 1, role), _r(x, y + 2, 3, 1, role))
+
+
+def _big_z(x: int, y: int, role: ColorRole = ColorRole.LIGHT) -> tuple[PixelRect, ...]:
+    return (_r(x, y, 4, 1, role), _r(x + 2, y + 1, 1, 1, role), _r(x + 1, y + 2, 1, 1, role), _r(x, y + 3, 4, 1, role))
+
+
+_SLEEP = (
+    _with(_SLEEP_BASE, _r(28, 17, 2, 3, ColorRole.SHADE)),
+    _with(_SLEEP_BASE, _r(29, 17, 1, 3, ColorRole.SHADE), *_z(16, 12)),
+    _with(_SLEEP_BASE, _r(28, 17, 2, 3, ColorRole.SHADE), *_z(20, 8), *_big_z(14, 12)),
+    _with(_SLEEP_BASE, _r(29, 17, 1, 3, ColorRole.SHADE), *_z(17, 9), *_big_z(21, 5), *_z(26, 2, ColorRole.SHADE)),
+)
 _REACT = (_with(tuple(r for r in _UPRIGHT
                       if r.role is not ColorRole.EYE
                       and not (r.x in (10, 20) and r.width == 4 and r.height == 5)),

@@ -57,6 +57,11 @@ class SpriteRegistryTests(unittest.TestCase):
         ears = [rect for rect in FRAMES[Pose.REACT][0].rectangles if rect.x in (10, 20) and rect.width == 4 and rect.height == 5]
         self.assertEqual([(10, 4), (20, 4)], [(rect.x, rect.y) for rect in ears])
 
+    def test_sleep_pose_has_four_animated_frames_with_z_indicators(self) -> None:
+        sleep_frames = FRAMES[Pose.SLEEP]
+        self.assertEqual(4, len(sleep_frames))
+        self.assertGreater(len(sleep_frames[3].rectangles), len(sleep_frames[0].rectangles))
+
 
 if __name__ == "__main__":
     unittest.main()

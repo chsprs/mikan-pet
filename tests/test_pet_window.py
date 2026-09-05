@@ -357,6 +357,14 @@ class PetWindowTests(unittest.TestCase):
         self.assertIn("Mikan Pet", showerror.call_args.args[0])
         self.assertFalse(window._closing)
 
+    def test_hide_controls_clears_canvas_state_and_updates_idletasks(self) -> None:
+        window, root, controller, *_ = self.make_window(controls_visible=True)
+        controller.set_controls_visible(False)
+        window._apply_window_layout()
+        controls = window.canvas.items_with_tag("controls")
+        self.assertTrue(all(opt.get("state") == "hidden" for _, opt in controls))
+        self.assertGreater(root.update_idletasks_calls, 0)
+
 
 def event_at(x: int, y: int) -> SimpleNamespace:
     return SimpleNamespace(x_root=x, y_root=y)
@@ -392,7 +400,11 @@ class FakeRoot:
         self.lifecycle: list[str] = []
         self.destroy_calls = 0
         self.mainloop_calls = 0
+        self.update_idletasks_calls = 0
         self.report_callback_exception = None
+
+    def update_idletasks(self) -> None:
+        self.update_idletasks_calls += 1
 
     def overrideredirect(self, enabled: bool) -> None:
         self.override = enabled

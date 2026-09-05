@@ -378,10 +378,6 @@ class PetWindow:
         layout = calculate_window_layout(state.position, state.controls_visible, self.metrics)
         size = layout.window_size
         origin = layout.root_origin
-        self.canvas.configure(width=size.width, height=size.height)
-        image_x = layout.pet_offset.x + self.metrics.pet_image_offset.x
-        image_y = layout.pet_offset.y + self.metrics.pet_image_offset.y
-        self.canvas.coords("pet", image_x, image_y)
         self.canvas.itemconfigure(
             "controls",
             state="normal" if state.controls_visible else "hidden",
@@ -389,6 +385,11 @@ class PetWindow:
         # Tk's bare '-N' means distance from the far screen edge. '+-N'
         # expresses a negative absolute desktop coordinate (left/above primary).
         self.root.geometry(f"{size.width}x{size.height}+{origin.x}+{origin.y}")
+        self.canvas.configure(width=size.width, height=size.height)
+        image_x = layout.pet_offset.x + self.metrics.pet_image_offset.x
+        image_y = layout.pet_offset.y + self.metrics.pet_image_offset.y
+        self.canvas.coords("pet", image_x, image_y)
+        self.root.update_idletasks()
 
     def _schedule_tick(self) -> None:
         if not self._closing:

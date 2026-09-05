@@ -187,23 +187,6 @@ class PetWindow:
         self.canvas.delete("all")
         self._button_base_coords.clear()
 
-        # Retro capsule background enclosing floating controls
-        capsule_x1 = self._scale(12)
-        capsule_y1 = self._scale(8)
-        capsule_x2 = self._scale(188)
-        capsule_y2 = self._scale(60)
-        capsule_radius = self._scale(8)
-        self.canvas.create_rectangle(
-            capsule_x1,
-            capsule_y1,
-            capsule_x2,
-            capsule_y2,
-            fill="#FFF8EC",
-            outline=DARK,
-            width=max(1, self._scale(2)),
-            tags=("controls", "controls_capsule"),
-        )
-
         self._draw_control(16, MediaAction.PREVIOUS, "◀◀", CREAM, CREAM_PRESSED)
         play_glyph = "❚❚" if getattr(self, "_is_track_playing", False) else "▶"
         self._draw_control(76, MediaAction.PLAY_PAUSE, play_glyph, MIKAN_ORANGE, ORANGE_PRESSED)

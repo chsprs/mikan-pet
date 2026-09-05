@@ -121,14 +121,14 @@ class UpdaterTests(unittest.TestCase):
                     )
             self.assertFalse(target_path.exists())
 
-    @patch("subprocess.Popen")
-    def test_launch_installer_updater_executes_target(self, mock_popen: Mock) -> None:
+    @patch("ctypes.windll.shell32.ShellExecuteW")
+    def test_launch_installer_updater_executes_target(self, mock_shell: Mock) -> None:
         with TemporaryDirectory() as tmp_dir:
             installer = Path(tmp_dir) / "MikanPet-Setup.exe"
             installer.write_bytes(b"dummy")
             with patch("sys.platform", "win32"):
                 launch_installer_updater(installer)
-            mock_popen.assert_called_once_with([str(installer)], close_fds=True)
+            mock_shell.assert_called_once_with(None, "open", str(installer), None, None, 1)
 
 
 if __name__ == "__main__":

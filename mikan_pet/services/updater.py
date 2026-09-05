@@ -126,9 +126,19 @@ def launch_installer_updater(installer_path: Path) -> None:
     if sys.platform != "win32":
         return
 
-    # Inno Setup installer flags: /SILENT or interactive run
-    # Runs the installer independently of this process
-    subprocess.Popen(
-        [str(installer_path)],
-        close_fds=True,
-    )
+    # Launch installer with elevated privileges if needed or standard ShellExecute
+    try:
+        import ctypes
+        ctypes.windll.shell32.ShellExecuteW(
+            None,
+            "open",
+            str(installer_path),
+            None,
+            None,
+            1,  # SW_SHOWNORMAL
+        )
+    except Exception:
+        subprocess.Popen(
+            [str(installer_path)],
+            close_fds=True,
+        )

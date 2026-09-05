@@ -43,11 +43,28 @@ jobs:
         run: |
           powershell -ExecutionPolicy Bypass -File scripts/build.ps1 -Python (Get-Command python).Source
 
+      - name: Generate Release Notes
+        shell: powershell
+        run: |
+          $tag = $env:GITHUB_REF -replace 'refs/tags/', ''
+          $notes = @"
+          ### 🐾 Pembaruan Mikan Pet $tag
+
+          #### 📦 Berkas Rilis:
+          - **MikanPet-Setup-x64.exe**: Windows Installer
+          - **MikanPet-portable-x64.zip**: Windows Portable (ekstrak dan langsung jalankan)
+
+          #### 📋 Catatan Komit Terbaru:
+          "@
+          $commits = git log -n 10 --pretty=format:"- %s (%h)"
+          $notes = $notes + "`r`n`r`n" + $commits + "`r`n"
+          [IO.File]::WriteAllText("release_notes.md", $notes, [Text.Encoding]::UTF8)
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         if: startsWith(github.ref, 'refs/tags/v')
         with:
+          body_path: release_notes.md
           files: |
             dist/MikanPet-Setup-x64.exe
             dist/MikanPet-portable-x64.zip
-          generate_release_notes: true

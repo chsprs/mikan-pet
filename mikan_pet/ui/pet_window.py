@@ -316,11 +316,13 @@ class PetWindow:
                 return
 
             if not is_newer_version(__version__, release.version):
+                notes = release.release_notes.strip()
+                summary = f"\n\nCatatan rilis v{release.version}:\n{notes[:300]}..." if notes else ""
                 self.root.after(
                     0,
                     lambda: messagebox.showinfo(
                         "Mikan Pet",
-                        f"Mikan Pet v{__version__} sudah versi terbaru!",
+                        f"Mikan Pet v{__version__} sudah versi terbaru!{summary}",
                         parent=self.root,
                     ),
                 )
@@ -328,7 +330,7 @@ class PetWindow:
 
             def on_confirm_update() -> None:
                 notes = release.release_notes.strip()
-                summary = f"\n\nCatatan rilis:\n{notes[:200]}..." if notes else ""
+                summary = f"\n\nCatatan rilis:\n{notes[:300]}..." if notes else ""
                 should_update = messagebox.askyesno(
                     "Mikan Pet - Pembaruan Tersedia",
                     f"Versi baru v{release.version} tersedia! (Saat ini: v{__version__}){summary}\n\nPerbarui sekarang tanpa perlu install ulang?",
@@ -372,6 +374,11 @@ class PetWindow:
                         )
 
                 threading.Thread(target=download_worker, daemon=True).start()
+                messagebox.showinfo(
+                    "Mikan Pet - Mengunduh Pembaruan",
+                    f"Pembaruan v{release.version} sedang diunduh di latar belakang.\n\nSetelah selesai, Mikan Pet akan otomatis dimulai ulang.",
+                    parent=self.root,
+                )
 
             self.root.after(0, on_confirm_update)
 

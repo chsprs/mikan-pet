@@ -120,6 +120,9 @@ def launch_in_place_updater(
     script_path = temp_dir / "_mikan_update.cmd"
 
     target_exe = install_dir / target_exe_name
+    staging_str = str(staging_dir).rstrip("\\/")
+    install_str = str(install_dir).rstrip("\\/")
+    target_exe_str = str(target_exe).rstrip("\\/")
     script_content = (
         "@echo off\r\n"
         "setlocal enabledelayedexpansion\r\n"
@@ -128,7 +131,7 @@ def launch_in_place_updater(
         "timeout /t 1 /nobreak >nul\r\n"
         "set RETRY=0\r\n"
         ":copy_loop\r\n"
-        f'xcopy "{staging_dir}\\*" "{install_dir}\\" /E /Y /Q >nul 2>&1\r\n'
+        f'xcopy "{staging_str}\\*" "{install_str}" /E /I /Y /Q /H /R >nul 2>&1\r\n'
         "if errorlevel 1 (\r\n"
         "    set /a RETRY+=1\r\n"
         "    if !RETRY! leq 10 (\r\n"
@@ -136,8 +139,8 @@ def launch_in_place_updater(
         "        goto copy_loop\r\n"
         "    )\r\n"
         ")\r\n"
-        f'rmdir /S /Q "{staging_dir}" >nul 2>&1\r\n'
-        f'start "" "{target_exe}"\r\n'
+        f'rmdir /S /Q "{staging_str}" >nul 2>&1\r\n'
+        f'start "" /D "{install_str}" "{target_exe_str}"\r\n'
         "(goto) 2>nul & del \"%~f0\"\r\n"
     )
     script_path.write_text(script_content, encoding="ascii")

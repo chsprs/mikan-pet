@@ -21,7 +21,7 @@ from mikan_pet.ui.pet_window import PetWindow
 from mikan_pet.ui.sprite_cache import SpriteCache
 
 
-VERSION = "0.1.4"
+VERSION = "0.1.5"
 _MUTEX_NAME = "Local\\MikanPet"
 
 WindowFactory = Callable[[AppSettings, MonitorService, MediaKeyService, Callable[[AppSettings], None]], PetWindow]

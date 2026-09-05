@@ -267,8 +267,8 @@ class PetWindow:
             0,
             0,
             0,
-            fill=DARK,
-            outline=CREAM,
+            fill=MIKAN_ORANGE,
+            outline=DARK,
             width=max(1, self._scale(1)),
             tags=("track_bubble", "track_bubble_pin"),
             state="hidden",
@@ -676,32 +676,32 @@ class PetWindow:
             time_str = f"{pos_str} / {dur_str}"
             progress = max(0.0, min(1.0, pos_sec / dur_sec)) if dur_sec > 0 else 0.0
 
-            # Line 1: Title (centered at bx, by - scale(8))
-            self.canvas.coords("track_bubble_text", bx, by - self._scale(8))
+            # Line 1: Title (centered at bx, by - scale(10))
+            self.canvas.coords("track_bubble_text", bx, by - self._scale(10))
             bbox_title = self.canvas.bbox("track_bubble_text")
             title_w = (bbox_title[2] - bbox_title[0]) if bbox_title else self._scale(70)
 
-            # Line 3: Time Text (centered at bx, by + scale(8))
+            # Line 3: Time Text (centered at bx, by + scale(10))
             self.canvas.itemconfigure("track_bubble_time", text=time_str, state="normal")
-            self.canvas.coords("track_bubble_time", bx, by + self._scale(8))
+            self.canvas.coords("track_bubble_time", bx, by + self._scale(10))
             bbox_time = self.canvas.bbox("track_bubble_time")
             time_w = (bbox_time[2] - bbox_time[0]) if bbox_time else self._scale(50)
 
-            min_bubble_w = self._scale(100)
+            min_bubble_w = self._scale(110)
             bubble_w = max(title_w, time_w, min_bubble_w) + pad_x * 2
             bg_x1 = bx - bubble_w // 2
             bg_x2 = bx + bubble_w // 2
-            bg_y1 = by - self._scale(16)
-            bg_y2 = by + self._scale(16)
+            bg_y1 = by - self._scale(18)
+            bg_y2 = by + self._scale(18)
 
             # Line 2: Seekbar with Pin (at by)
-            bar_margin = pad_x + self._scale(4)
+            bar_margin = pad_x + self._scale(6)
             bar_x1 = bg_x1 + bar_margin
             bar_x2 = bg_x2 - bar_margin
             bar_y = by
-            bar_h = max(1, self._scale(1))
+            bar_h = max(1, self._scale(2))
             pin_x = bar_x1 + int((bar_x2 - bar_x1) * progress)
-            pin_r = max(2, self._scale(2))
+            pin_r = max(3, self._scale(3))
 
             shift_x = 0
             if bg_x1 < pad_x:
@@ -715,8 +715,8 @@ class PetWindow:
                 bar_x1 += shift_x
                 bar_x2 += shift_x
                 pin_x += shift_x
-                self.canvas.coords("track_bubble_text", bx + shift_x, by - self._scale(8))
-                self.canvas.coords("track_bubble_time", bx + shift_x, by + self._scale(8))
+                self.canvas.coords("track_bubble_text", bx + shift_x, by - self._scale(10))
+                self.canvas.coords("track_bubble_time", bx + shift_x, by + self._scale(10))
 
             self.canvas.coords("track_bubble_bg", bg_x1, bg_y1, bg_x2, bg_y2)
             self.canvas.coords("track_bubble_bar_bg", bar_x1, bar_y - bar_h, bar_x2, bar_y + bar_h)

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import base64
+import json
 import os
 import subprocess
 import threading
@@ -91,9 +92,16 @@ class WindowsGsmtcBackend:
         "                    $pb = $session.GetPlaybackInfo();\n"
         "                    $status = if ($pb) { [int]$pb.PlaybackStatus } else { 0 };\n"
         "                    $tl = $session.GetTimelineProperties();\n"
-        "                    $pos = if ($tl) { [math]::Floor($tl.Position.TotalSeconds) } else { 0 };\n"
-        "                    $end = if ($tl) { [math]::Floor($tl.EndTime.TotalSeconds) } else { 0 };\n"
-        "                    [Console]::Out.WriteLine($p.Title + '|' + $p.Artist + '|' + $status + '|' + $pos + '|' + $end);\n"
+        "                    $pos = if ($tl -and $tl.Position) { [math]::Floor($tl.Position.TotalSeconds) } else { 0 };\n"
+        "                    $end = if ($tl -and $tl.EndTime) { [math]::Floor($tl.EndTime.TotalSeconds) } else { 0 };\n"
+        "                    $data = [PSCustomObject]@{\n"
+        "                        title = $p.Title;\n"
+        "                        artist = $p.Artist;\n"
+        "                        status = $status;\n"
+        "                        pos = $pos;\n"
+        "                        end = $end;\n"
+        "                    };\n"
+        "                    [Console]::Out.WriteLine(($data | ConvertTo-Json -Compress));\n"
         "                    [Console]::Out.Flush();\n"
         "                    continue;\n"
         "                }\n"
@@ -146,12 +154,22 @@ class WindowsGsmtcBackend:
                 output = line.strip()
                 if not output or output == "NO_SESSION":
                     return MediaTrackInfo()
-                parts = output.split("|")
-                title = parts[0] if len(parts) > 0 else ""
-                artist = parts[1] if len(parts) > 1 else ""
-                status = int(parts[2]) if len(parts) > 2 and parts[2].isdigit() else 0
-                pos = float(parts[3]) if len(parts) > 3 and parts[3].replace(".", "", 1).isdigit() else 0.0
-                end = float(parts[4]) if len(parts) > 4 and parts[4].replace(".", "", 1).isdigit() else 0.0
+
+                if output.startswith("{"):
+                    data = json.loads(output)
+                    title = str(data.get("title") or "")
+                    artist = str(data.get("artist") or "")
+                    status = int(data.get("status") or 0)
+                    pos = float(data.get("pos") or 0.0)
+                    end = float(data.get("end") or 0.0)
+                else:
+                    parts = output.split("|")
+                    title = parts[0] if len(parts) > 0 else ""
+                    artist = parts[1] if len(parts) > 1 else ""
+                    status = int(parts[2]) if len(parts) > 2 and parts[2].isdigit() else 0
+                    pos = float(parts[3]) if len(parts) > 3 and parts[3].replace(".", "", 1).isdigit() else 0.0
+                    end = float(parts[4]) if len(parts) > 4 and parts[4].replace(".", "", 1).isdigit() else 0.0
+
                 is_playing = (status == 4)
                 return MediaTrackInfo(
                     title=title,

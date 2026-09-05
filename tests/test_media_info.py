@@ -110,7 +110,7 @@ class MediaInfoTests(unittest.TestCase):
         mock_proc = MagicMock()
         mock_proc.poll.return_value = None
         mock_proc.stdin = MagicMock()
-        mock_proc.stdout = io.StringIO("Golden Hour|JVKE|4|83|209\n")
+        mock_proc.stdout = io.StringIO('{"title":"Golden Hour","artist":"JVKE","status":4,"pos":83,"end":209}\n')
         mock_popen.return_value = mock_proc
 
         backend = WindowsGsmtcBackend()
@@ -120,6 +120,24 @@ class MediaInfoTests(unittest.TestCase):
         self.assertTrue(info.is_playing)
         self.assertEqual(83.0, info.position_seconds)
         self.assertEqual(209.0, info.duration_seconds)
+        self.assertTrue(info.has_timeline)
+        backend.close()
+
+    @patch("subprocess.Popen")
+    def test_windows_gsmtc_backend_parses_titles_with_pipes(self, mock_popen: Mock) -> None:
+        mock_proc = MagicMock()
+        mock_proc.poll.return_value = None
+        mock_proc.stdin = MagicMock()
+        mock_proc.stdout = io.StringIO('{"title":"DJ LAGI TAMVAN | REVERB","artist":"Ilham YETE","status":4,"pos":10,"end":325}\n')
+        mock_popen.return_value = mock_proc
+
+        backend = WindowsGsmtcBackend()
+        info = backend.query_current_track()
+        self.assertEqual("DJ LAGI TAMVAN | REVERB", info.title)
+        self.assertEqual("Ilham YETE", info.artist)
+        self.assertTrue(info.is_playing)
+        self.assertEqual(10.0, info.position_seconds)
+        self.assertEqual(325.0, info.duration_seconds)
         self.assertTrue(info.has_timeline)
         backend.close()
 

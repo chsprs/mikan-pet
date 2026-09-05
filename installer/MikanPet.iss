@@ -1,6 +1,6 @@
 #define MyAppName "Mikan Pet"
 #ifndef MyAppVersion
-  #define MyAppVersion "0.1.6"
+  #define MyAppVersion "0.1.7"
 #endif
 #define MyAppPublisher "Mikan Pet"
 #define MyAppExeName "MikanPet.exe"

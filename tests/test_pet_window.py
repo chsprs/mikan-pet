@@ -29,6 +29,7 @@ class PetWindowHelpersTests(unittest.TestCase):
         self.assertIn("Pilih skin", context_menu_labels(True))
         self.assertIn("Always on top", context_menu_labels(True))
         self.assertIn("Reset posisi", context_menu_labels(True))
+        self.assertIn("Periksa Pembaruan", context_menu_labels(True))
         self.assertIn("Keluar", context_menu_labels(True))
 
     def test_animation_clock_advances_and_resets_on_pose_change(self) -> None:
@@ -146,7 +147,7 @@ class PetWindowTests(unittest.TestCase):
     def test_context_menu_has_walk_skin_topmost_reset_separator_and_exit(self) -> None:
         window, _, _, _, _, _, _ = self.make_window()
         self.assertEqual(
-            ["command", "cascade", "checkbutton", "command", "separator", "command"],
+            ["command", "cascade", "checkbutton", "command", "command", "separator", "command"],
             [kind for kind, _ in window.menu.entries],
         )
         skin_menu = window.menu.entries[1][1]["menu"]
@@ -382,6 +383,25 @@ class PetWindowTests(unittest.TestCase):
         self.assertEqual("normal", bubble_bg[0][1].get("state"))
         self.assertEqual("normal", bubble_txt[0][1].get("state"))
         self.assertIn("Song A", bubble_txt[0][1].get("text"))
+
+    def test_check_for_updates_shows_info_when_already_latest(self) -> None:
+        window, root, controller, *_ = self.make_window()
+        fake_release = SimpleNamespace(
+            version="0.1.0",
+            tag_name="v0.1.0",
+            zip_url=None,
+            html_url="",
+            release_notes="",
+        )
+        with patch("mikan_pet.services.updater.fetch_latest_release", return_value=fake_release), \
+             patch("mikan_pet.ui.pet_window.messagebox.showinfo") as showinfo, \
+             patch("threading.Thread", side_effect=lambda target, daemon: SimpleNamespace(start=target)):
+            window._check_for_updates()
+            for delay, cb, _ in list(root.after_calls):
+                cb()
+        showinfo.assert_called_once()
+        self.assertIn("terbaru", showinfo.call_args.args[1])
+
 
 
 

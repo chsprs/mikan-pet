@@ -74,8 +74,10 @@ def context_menu_labels(walking: bool) -> tuple[str, ...]:
         "Pilih skin",
         "Always on top",
         "Reset posisi",
+        "Periksa Pembaruan",
         "Keluar",
     )
+
 
 
 class PetWindow:
@@ -272,8 +274,98 @@ class PetWindow:
             command=self._toggle_topmost,
         )
         self.menu.add_command(label=labels[3], command=self._reset_position)
+        self.menu.add_command(label=labels[4], command=self._check_for_updates)
         self.menu.add_separator()
-        self.menu.add_command(label=labels[4], command=self.close)
+        self.menu.add_command(label=labels[5], command=self.close)
+
+    def _check_for_updates(self) -> None:
+        import threading
+        from pathlib import Path
+        import sys
+        from mikan_pet import __version__
+        from mikan_pet.services.updater import (
+            DEFAULT_GITHUB_REPO,
+            download_and_extract_update,
+            fetch_latest_release,
+            is_newer_version,
+            launch_in_place_updater,
+        )
+
+        def worker() -> None:
+            release = fetch_latest_release(DEFAULT_GITHUB_REPO)
+            if release is None:
+                self.root.after(
+                    0,
+                    lambda: messagebox.showwarning(
+                        "Mikan Pet",
+                        "Tidak dapat memeriksa pembaruan.\nPeriksa koneksi internet Anda.",
+                        parent=self.root,
+                    ),
+                )
+                return
+
+            if not is_newer_version(__version__, release.version):
+                self.root.after(
+                    0,
+                    lambda: messagebox.showinfo(
+                        "Mikan Pet",
+                        f"Mikan Pet v{__version__} sudah versi terbaru!",
+                        parent=self.root,
+                    ),
+                )
+                return
+
+            def on_confirm_update() -> None:
+                notes = release.release_notes.strip()
+                summary = f"\n\nCatatan rilis:\n{notes[:200]}..." if notes else ""
+                should_update = messagebox.askyesno(
+                    "Mikan Pet - Pembaruan Tersedia",
+                    f"Versi baru v{release.version} tersedia! (Saat ini: v{__version__}){summary}\n\nPerbarui sekarang tanpa perlu install ulang?",
+                    parent=self.root,
+                )
+                if not should_update:
+                    return
+
+                if not release.zip_url:
+                    import webbrowser
+                    webbrowser.open(release.html_url)
+                    return
+
+                def download_worker() -> None:
+                    try:
+                        import tempfile
+                        staging_dir = Path(tempfile.gettempdir()) / f"mikan_update_{release.version}"
+                        download_and_extract_update(release.zip_url, staging_dir)
+                        app_dir = Path(sys.executable).resolve().parent
+                        exe_path = app_dir / "MikanPet.exe"
+                        if not exe_path.exists():
+                            self.root.after(
+                                0,
+                                lambda: messagebox.showinfo(
+                                    "Mikan Pet",
+                                    f"Pembaruan v{release.version} berhasil diunduh ke:\n{staging_dir}\n\n(Mode development: silakan build atau salin manual)",
+                                    parent=self.root,
+                                ),
+                            )
+                            return
+                        launch_in_place_updater(staging_dir, app_dir, "MikanPet.exe")
+                        self.root.after(0, self.close)
+                    except Exception as err:
+                        self.root.after(
+                            0,
+                            lambda: messagebox.showerror(
+                                "Mikan Pet - Gagal Memperbarui",
+                                f"Gagal mengunduh pembaruan:\n{err}",
+                                parent=self.root,
+                            ),
+                        )
+
+                threading.Thread(target=download_worker, daemon=True).start()
+
+            self.root.after(0, on_confirm_update)
+
+        threading.Thread(target=worker, daemon=True).start()
+
 
     def _show_context_menu(self, event) -> None:
         try:

@@ -41,98 +41,384 @@ class SkinDefinition:
 
 
 MIKAN = {
-    ColorRole.BODY: "#E78145", ColorRole.SHADE: "#B95D32", ColorRole.DARK: "#7F4528",
-    ColorRole.LIGHT: "#FFF2D8", ColorRole.EYE: "#2A2430", ColorRole.COLLAR: "#3C6E91",
-    ColorRole.PATCH_ONE: "#E78145", ColorRole.PATCH_TWO: "#B95D32",
+    ColorRole.BODY: "#D9783D", ColorRole.SHADE: "#AC5327", ColorRole.DARK: "#1A1A1A",
+    ColorRole.LIGHT: "#EED0BD", ColorRole.EYE: "#FFFFFF", ColorRole.COLLAR: "#F6A99A",
+    ColorRole.PATCH_ONE: "#EED0BD", ColorRole.PATCH_TWO: "#70B5FF",
 }
 BYTE = {
-    ColorRole.BODY: "#3E467E", ColorRole.SHADE: "#303767", ColorRole.DARK: "#22284F",
-    ColorRole.LIGHT: "#C9D1FF", ColorRole.EYE: "#89F7D4", ColorRole.COLLAR: "#FF76B7",
-    ColorRole.PATCH_ONE: "#343B70", ColorRole.PATCH_TWO: "#89F7D4",
+    ColorRole.BODY: "#2D2D2D", ColorRole.SHADE: "#202020", ColorRole.DARK: "#1A1A1A",
+    ColorRole.LIGHT: "#2D2D2D", ColorRole.EYE: "#FBB03B", ColorRole.COLLAR: "#F6A99A",
+    ColorRole.PATCH_ONE: "#2D2D2D", ColorRole.PATCH_TWO: "#89F7D4",
 }
 MOCHI = {
-    ColorRole.BODY: "#FFFAF1", ColorRole.SHADE: "#DED5CA", ColorRole.DARK: "#51434B",
-    ColorRole.LIGHT: "#FFF6EA", ColorRole.EYE: "#3B343A", ColorRole.COLLAR: "#4F7E78",
-    ColorRole.PATCH_ONE: "#D07A43", ColorRole.PATCH_TWO: "#51434B",
+    ColorRole.BODY: "#FFFFFF", ColorRole.SHADE: "#E0E0E6", ColorRole.DARK: "#1A1A1A",
+    ColorRole.LIGHT: "#FFFFFF", ColorRole.EYE: "#3FA9F5", ColorRole.COLLAR: "#F6A99A",
+    ColorRole.PATCH_ONE: "#FFFFFF", ColorRole.PATCH_TWO: "#70B5FF",
+}
+ASH = {
+    ColorRole.BODY: "#9E9E9E", ColorRole.SHADE: "#616161", ColorRole.DARK: "#1A1A1A",
+    ColorRole.LIGHT: "#F4A7B9", ColorRole.EYE: "#FFFFFF", ColorRole.COLLAR: "#F6A99A",
+    ColorRole.PATCH_ONE: "#F4A7B9", ColorRole.PATCH_TWO: "#70B5FF",
 }
 
 SKINS = {
     SkinId.MIKAN: SkinDefinition(SkinId.MIKAN, "Mikan", MIKAN),
     SkinId.BYTE: SkinDefinition(SkinId.BYTE, "Byte", BYTE),
     SkinId.MOCHI: SkinDefinition(SkinId.MOCHI, "Mochi", MOCHI),
+    SkinId.ASH: SkinDefinition(SkinId.ASH, "Ash", ASH),
 }
 
 
-def _r(x: int, y: int, width: int, height: int, role: ColorRole) -> PixelRect:
-    return PixelRect(x, y, width, height, role)
+_CHAR_ROLE = {
+    "X": ColorRole.DARK,
+    "N": ColorRole.DARK,
+    "O": ColorRole.BODY,
+    "S": ColorRole.SHADE,
+    "B": ColorRole.LIGHT,
+    "P": ColorRole.COLLAR,
+    "E": ColorRole.EYE,
+    "W": ColorRole.EYE,
+    "Z": ColorRole.PATCH_TWO,
+}
 
 
-_UPRIGHT = (
-    _r(8, 15, 17, 11, ColorRole.BODY), _r(10, 8, 14, 11, ColorRole.BODY),
-    _r(10, 5, 4, 5, ColorRole.SHADE), _r(20, 5, 4, 5, ColorRole.SHADE),
-    _r(25, 18, 5, 3, ColorRole.SHADE), _r(28, 14, 3, 6, ColorRole.SHADE),
-    _r(12, 11, 2, 3, ColorRole.EYE), _r(20, 11, 2, 3, ColorRole.EYE),
-    _r(16, 14, 2, 2, ColorRole.DARK), _r(14, 17, 6, 2, ColorRole.LIGHT),
-    _r(12, 20, 10, 2, ColorRole.COLLAR), _r(16, 21, 2, 2, ColorRole.COLLAR),
-    _r(10, 24, 5, 5, ColorRole.SHADE), _r(19, 24, 5, 5, ColorRole.SHADE),
-    _r(11, 8, 5, 3, ColorRole.PATCH_ONE), _r(20, 8, 4, 4, ColorRole.PATCH_TWO),
+def _ascii_to_template(grid: list[str]) -> FrameTemplate:
+    row_runs: list[list[PixelRect]] = []
+    for y, row in enumerate(grid):
+        runs: list[PixelRect] = []
+        x = 0
+        while x < len(row):
+            ch = row[x]
+            if ch in _CHAR_ROLE:
+                role = _CHAR_ROLE[ch]
+                start_x = x
+                while x < len(row) and row[x] in _CHAR_ROLE and _CHAR_ROLE[row[x]] == role:
+                    x += 1
+                runs.append(PixelRect(start_x, y, x - start_x, 1, role))
+            else:
+                x += 1
+        row_runs.append(runs)
+
+    merged: list[PixelRect] = []
+    active: list[PixelRect] = []
+
+    for runs in row_runs:
+        next_active: list[PixelRect] = []
+        for r in runs:
+            matched = False
+            for a in active:
+                if a.x == r.x and a.width == r.width and a.role == r.role and a.y + a.height == r.y:
+                    idx = active.index(a)
+                    active[idx] = PixelRect(a.x, a.y, a.width, a.height + 1, a.role)
+                    next_active.append(active[idx])
+                    matched = True
+                    break
+            if not matched:
+                next_active.append(r)
+        for a in active:
+            if a not in next_active:
+                merged.append(a)
+        active = next_active
+
+    merged.extend(active)
+    return FrameTemplate(tuple(merged))
+
+
+# 32x32 Pixel Art Grids (facing RIGHT, mirrored horizontally for LEFT)
+_GRID_STAND = [
+    "................................",
+    "................................",
+    "................................",
+    "................................",
+    "................................",
+    "................................",
+    "................................",
+    "................................",
+    "................................",
+    "................................",
+    "................................",
+    "................................",
+    "................................",
+    ".............XXX.....XXX........",
+    "............XOOPXXXXXOOPX.......",
+    "............XPOOSSSSOOPPX.......",
+    "............XOOOSOOOSOOOX.......",
+    "............XOOOOOOOOOOOX.......",
+    "............XSOOWOOOWOOSX.......",
+    "..........XXXOOOXOXOXOOOXXX.....",
+    "............XSOOOOOOOOOSX.......",
+    "..........XXXOOOOOOOOOOOXXX.....",
+    "......XXX....XXOOOOOOOXX........",
+    ".....XOSSX.....XOOOOOX..........",
+    ".....XOSOSX...XSSOOBBX..........",
+    "......XXXSOX.XSSOOBBBX..........",
+    ".........XOOXSSOOBBBBX..........",
+    "..........XOSOOOOBBBBX..........",
+    "...........XXOOXOOXOOX..........",
+    ".............XXXXXXXX...........",
+    "................................",
+    "................................",
+]
+
+_GRID_BLINK = [
+    "................................",
+    "................................",
+    "................................",
+    "................................",
+    "................................",
+    "................................",
+    "................................",
+    "................................",
+    "................................",
+    "................................",
+    "................................",
+    "................................",
+    "................................",
+    ".............XXX.....XXX........",
+    "............XOOPXXXXXOOPX.......",
+    "............XPOOSSSSOOPPX.......",
+    "............XOOOSOOOSOOOX.......",
+    "............XOOOOOOOOOOOX.......",
+    "............XSOOOOOOOOOSX.......",
+    "..........XXXOOOXXXOXOOOXXX.....",
+    "............XSOOOOOOOOOSX.......",
+    "..........XXXOOOOOOOOOOOXXX.....",
+    "......XXX....XXOOOOOOOXX........",
+    ".....XOSSX.....XOOOOOX..........",
+    ".....XOSOSX...XSSOOBBX..........",
+    "......XXXSOX.XSSOOBBBX..........",
+    ".........XOOXSSOOBBBBX..........",
+    "..........XOSOOOOBBBBX..........",
+    "...........XXOOXOOXOOX..........",
+    ".............XXXXXXXX...........",
+    "................................",
+    "................................",
+]
+
+# Forward Walk Cycle (4-frame natural quadruped stride)
+_GRID_WALK_0 = [
+    "................................",
+    "................................",
+    "................................",
+    "................................",
+    "................................",
+    "................................",
+    "................................",
+    "................................",
+    "................................",
+    "................................",
+    "................................",
+    "................................",
+    "................................",
+    ".............XXX.....XXX........",
+    "............XOOPXXXXXOOPX.......",
+    "............XPOOSSSSOOPPX.......",
+    "............XOOOSOOOSOOOX.......",
+    "............XOOOOOOOOOOOX.......",
+    "............XSOOWOOOWOOSX.......",
+    "..........XXXOOOXOXOXOOOXXX.....",
+    "............XSOOOOOOOOOSX.......",
+    "......XXX.XXXOOOOOOOOOOOXXX.....",
+    ".....XOSSX...XXOOOOOOOXX........",
+    ".....XOSOSX....XOOOOOX..........",
+    "......XXXSOX..XSSOOBBX..........",
+    ".........XOOXXSSOOBBBX..........",
+    "..........XOSOOOOBBBBX..........",
+    ".........XOOXOOOOBBBBOXX........",
+    "........XXOOXOOXOOXOOXOX........",
+    ".........XXXX...XXXXXXXX........",
+    "................................",
+    "................................",
+]
+
+_GRID_WALK_1 = [
+    "................................",
+    "................................",
+    "................................",
+    "................................",
+    "................................",
+    "................................",
+    "................................",
+    "................................",
+    "................................",
+    "................................",
+    "................................",
+    "................................",
+    ".............XXX.....XXX........",
+    "............XOOPXXXXXOOPX.......",
+    "............XPOOSSSSOOPPX.......",
+    "............XOOOSOOOSOOOX.......",
+    "............XOOOOOOOOOOOX.......",
+    "............XSOOWOOOWOOSX.......",
+    "..........XXXOOOXOXOXOOOXXX.....",
+    "............XSOOOOOOOOOSX.......",
+    "..........XXXOOOOOOOOOOOXXX.....",
+    "......XXX....XXOOOOOOOXX........",
+    ".....XOSSX.....XOOOOOX..........",
+    ".....XOSOSX...XSSOOBBX..........",
+    "......XXXSOX.XSSOOBBBX..........",
+    ".........XOOXSSOOBBBBX..........",
+    "..........XOSOOOOBBBBX..........",
+    "...........XXOOXOOXOOX..........",
+    "............XOOXOOXOOX..........",
+    "............XXXXXXXXXX..........",
+    "................................",
+    "................................",
+]
+
+_GRID_WALK_2 = [
+    "................................",
+    "................................",
+    "................................",
+    "................................",
+    "................................",
+    "................................",
+    "................................",
+    "................................",
+    "................................",
+    "................................",
+    "................................",
+    "................................",
+    "................................",
+    ".............XXX.....XXX........",
+    "............XOOPXXXXXOOPX.......",
+    "............XPOOSSSSOOPPX.......",
+    "............XOOOSOOOSOOOX.......",
+    "............XOOOOOOOOOOOX.......",
+    "............XSOOWOOOWOOSX.......",
+    "..........XXXOOOXOXOXOOOXXX.....",
+    "............XSOOOOOOOOOSX.......",
+    "..........XXXOOOOOOOOOOOXXX.....",
+    "......XXX....XXOOOOOOOXX........",
+    ".....XOSSX.....XOOOOOX..........",
+    ".....XOSOSX...XSSOOBBX..........",
+    "......XXXSOX.XSSOOBBBX..........",
+    ".........XOOXSSOOBBBBX..........",
+    "..........XOSOOOOBBBBX..........",
+    "...........XOOXXOOXXOOX.........",
+    "............XXXX..XXXXX.........",
+    "................................",
+    "................................",
+]
+
+_GRID_WALK_3 = _GRID_WALK_1
+
+# Sleep Grids with animated Z floating
+_GRID_SLEEP_BASE = [
+    "................................",
+    "................................",
+    "................................",
+    "................................",
+    "................................",
+    "................................",
+    "................................",
+    "................................",
+    "................................",
+    "................................",
+    "................................",
+    "................................",
+    "................................",
+    "................................",
+    ".............XXX.....XXX........",
+    "............XOOPXXXXXOOPX.......",
+    "............XPOOSSSSOOPPX.......",
+    "............XOOOSOOOSOOOX.......",
+    "............XOOOOOOOOOOOX.......",
+    "............XSOOOOOOOOOSX.......",
+    "..........XXXOOOXXXOXOOOXXX.....",
+    "............XSOOOOOOOOOSX.......",
+    "..........XXXOOOOOOOOOOOXXX.....",
+    ".............XXOOOOOOOXX........",
+    "...............XOOOOOX..........",
+    "......XXXXX...XSSOOBBX..........",
+    ".....XOSSSX..XSSOOBBBX..........",
+    "......XOOOOXXSSOOBBBBX..........",
+    ".......XXXXXXXXOOXOOXX..........",
+    ".............XXXXXXXX...........",
+    "................................",
+    "................................",
+]
+
+
+def _with_z(base: list[str], coords: list[tuple[int, int]]) -> list[str]:
+    grid = [list(r) for r in base]
+    for x, y in coords:
+        if 0 <= y < len(grid) and 0 <= x < len(grid[y]):
+            grid[y][x] = "Z"
+    return ["".join(r) for r in grid]
+
+
+_Z_SMALL = lambda ox, oy: [(ox, oy), (ox + 1, oy), (ox + 2, oy), (ox + 1, oy + 1), (ox, oy + 2), (ox + 1, oy + 2), (ox + 2, oy + 2)]
+_Z_BIG = lambda ox, oy: [(ox, oy), (ox + 1, oy), (ox + 2, oy), (ox + 3, oy), (ox + 2, oy + 1), (ox + 1, oy + 2), (ox, oy + 3), (ox + 1, oy + 3), (ox + 2, oy + 3), (ox + 3, oy + 3)]
+
+_GRID_SLEEP_0 = _with_z(_GRID_SLEEP_BASE, _Z_SMALL(22, 10))
+_GRID_SLEEP_1 = _with_z(_GRID_SLEEP_BASE, _Z_SMALL(24, 7) + _Z_SMALL(20, 11))
+_GRID_SLEEP_2 = _with_z(_GRID_SLEEP_BASE, _Z_BIG(24, 4) + _Z_SMALL(21, 8))
+_GRID_SLEEP_3 = _with_z(_GRID_SLEEP_BASE, _Z_BIG(25, 2) + _Z_BIG(22, 6) + _Z_SMALL(18, 10))
+
+# React: alert ears, wide open eyes
+_GRID_REACT = [
+    "................................",
+    "................................",
+    "................................",
+    "................................",
+    "................................",
+    "................................",
+    "................................",
+    "................................",
+    "................................",
+    "................................",
+    "................................",
+    "................................",
+    ".............XXX.....XXX........",
+    "............XPPPXXXXXPPPX.......",
+    "............XPPOSSSSOOPPX.......",
+    "............XOOOSOOOSOOOX.......",
+    "............XOOOOOOOOOOOX.......",
+    "............XSWWWOWWWOOSX.......",
+    "..........XXXSWWWXWWWOOSXXX.....",
+    "............XSOOOXOOOXOSX.......",
+    "..........XXXOOOOOOOOOOOXXX.....",
+    "......XXX....XXOOOOOOOXX........",
+    ".....XOSSX.....XOOOOOX..........",
+    ".....XOSOSX...XSSOOBBX..........",
+    "......XXXSOX.XSSOOBBBX..........",
+    ".........XOOXSSOOBBBBX..........",
+    "..........XOSOOOOBBBBX..........",
+    "...........XXOOXOOXOOX..........",
+    ".............XXXXXXXX...........",
+    "................................",
+    "................................",
+]
+
+
+# Compile templates
+_T_STAND = _ascii_to_template(_GRID_STAND)
+_T_BLINK = _ascii_to_template(_GRID_BLINK)
+_T_WALK_0 = _ascii_to_template(_GRID_WALK_0)
+_T_WALK_1 = _ascii_to_template(_GRID_WALK_1)
+_T_WALK_2 = _ascii_to_template(_GRID_WALK_2)
+_T_WALK_3 = _ascii_to_template(_GRID_WALK_3)
+
+_T_SLEEP_0 = _ascii_to_template(_GRID_SLEEP_0)
+_T_SLEEP_1 = _ascii_to_template(_GRID_SLEEP_1)
+_T_SLEEP_2 = _ascii_to_template(_GRID_SLEEP_2)
+_T_SLEEP_3 = _ascii_to_template(_GRID_SLEEP_3)
+
+_T_REACT = _ascii_to_template(_GRID_REACT)
+
+_WALK = (_T_WALK_0, _T_WALK_1, _T_WALK_2, _T_WALK_3)
+
+_IDLE = (
+    _T_STAND, _T_STAND, _T_STAND,
+    _T_WALK_1, _T_WALK_1,
+    _T_STAND, _T_STAND, _T_STAND,
+    _T_BLINK,
+    _T_STAND,
 )
 
-
-def _shift(rectangles: tuple[PixelRect, ...], dx: int = 0, dy: int = 0) -> tuple[PixelRect, ...]:
-    return tuple(PixelRect(r.x + dx, r.y + dy, r.width, r.height, r.role) for r in rectangles)
-
-
-def _with(rectangles: tuple[PixelRect, ...], *extra: PixelRect) -> FrameTemplate:
-    return FrameTemplate(rectangles + extra)
-
-
-def _replace(rectangles: tuple[PixelRect, ...], **changes: PixelRect) -> tuple[PixelRect, ...]:
-    return tuple(changes.get(str(index), rect) for index, rect in enumerate(rectangles))
-
-
-_WALK = (
-    FrameTemplate(_replace(_UPRIGHT, **{"5": _r(28, 12, 3, 6, ColorRole.SHADE)})),
-    FrameTemplate(_replace(_UPRIGHT,
-                           **{"0": _r(8, 16, 17, 11, ColorRole.BODY),
-                              "5": _r(28, 14, 3, 6, ColorRole.SHADE),
-                              "12": _r(11, 24, 5, 5, ColorRole.SHADE),
-                              "13": _r(18, 24, 5, 5, ColorRole.SHADE)})),
-)
-_IDLE = tuple(FrameTemplate(_UPRIGHT) for _ in range(3))
-_IDLE += tuple(FrameTemplate(_shift(_UPRIGHT, dy=1)) for _ in range(2))
-_IDLE += tuple(FrameTemplate(_UPRIGHT) for _ in range(3))
-_IDLE += (_with(_UPRIGHT, _r(28, 13, 3, 2, ColorRole.SHADE)),)
-_IDLE += (_with(tuple(r for r in _UPRIGHT if r.role is not ColorRole.EYE),
-                  _r(12, 12, 2, 1, ColorRole.EYE), _r(20, 12, 2, 1, ColorRole.EYE)),)
-
-_SLEEP_BASE = (
-    _r(6, 19, 20, 8, ColorRole.BODY), _r(5, 16, 9, 8, ColorRole.BODY),
-    _r(22, 20, 8, 3, ColorRole.SHADE), _r(27, 18, 3, 5, ColorRole.SHADE),
-    _r(8, 17, 3, 3, ColorRole.SHADE), _r(11, 20, 2, 1, ColorRole.DARK),
-    _r(16, 20, 2, 1, ColorRole.DARK), _r(8, 22, 7, 2, ColorRole.LIGHT),
-    _r(10, 24, 10, 2, ColorRole.COLLAR), _r(14, 25, 2, 2, ColorRole.COLLAR),
-)
-def _z(x: int, y: int, role: ColorRole = ColorRole.LIGHT) -> tuple[PixelRect, ...]:
-    return (_r(x, y, 3, 1, role), _r(x + 1, y + 1, 1, 1, role), _r(x, y + 2, 3, 1, role))
-
-
-def _big_z(x: int, y: int, role: ColorRole = ColorRole.LIGHT) -> tuple[PixelRect, ...]:
-    return (_r(x, y, 4, 1, role), _r(x + 2, y + 1, 1, 1, role), _r(x + 1, y + 2, 1, 1, role), _r(x, y + 3, 4, 1, role))
-
-
-_SLEEP = (
-    _with(_SLEEP_BASE, _r(28, 17, 2, 3, ColorRole.SHADE)),
-    _with(_SLEEP_BASE, _r(29, 17, 1, 3, ColorRole.SHADE), *_z(16, 12)),
-    _with(_SLEEP_BASE, _r(28, 17, 2, 3, ColorRole.SHADE), *_z(20, 8), *_big_z(14, 12)),
-    _with(_SLEEP_BASE, _r(29, 17, 1, 3, ColorRole.SHADE), *_z(17, 9), *_big_z(21, 5), *_z(26, 2, ColorRole.SHADE)),
-)
-_REACT = (_with(tuple(r for r in _UPRIGHT
-                      if r.role is not ColorRole.EYE
-                      and not (r.x in (10, 20) and r.width == 4 and r.height == 5)),
-                 _r(12, 10, 3, 3, ColorRole.EYE), _r(20, 10, 3, 3, ColorRole.EYE),
-                 _r(10, 4, 4, 5, ColorRole.SHADE), _r(20, 4, 4, 5, ColorRole.SHADE),
-                 _r(28, 12, 3, 2, ColorRole.SHADE)),)
+_SLEEP = (_T_SLEEP_0, _T_SLEEP_1, _T_SLEEP_2, _T_SLEEP_3)
+_REACT = (_T_REACT,)
 
 FRAMES = {Pose.WALK: _WALK, Pose.IDLE: _IDLE, Pose.SLEEP: _SLEEP, Pose.REACT: _REACT}
 

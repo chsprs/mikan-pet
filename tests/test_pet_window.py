@@ -153,7 +153,7 @@ class PetWindowTests(unittest.TestCase):
             [kind for kind, _ in window.menu.entries],
         )
         skin_menu = window.menu.entries[1][1]["menu"]
-        self.assertEqual(3, len(skin_menu.entries))
+        self.assertEqual(len(SkinId), len(skin_menu.entries))
         self.assertTrue(all(kind == "radiobutton" for kind, _ in skin_menu.entries))
 
     def test_pet_click_toggles_controls_without_entering_drag(self) -> None:

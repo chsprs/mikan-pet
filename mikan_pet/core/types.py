@@ -6,6 +6,7 @@ class SkinId(str, Enum):
     MIKAN = "mikan"
     BYTE = "byte"
     MOCHI = "mochi"
+    ASH = "ash"
 
 
 class MotionMode(str, Enum):

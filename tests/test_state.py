@@ -1,4 +1,5 @@
 import unittest
+from dataclasses import replace
 
 from mikan_pet.core.state import BehaviorDurations, PetController, PetState
 from mikan_pet.core.types import Direction, MotionMode, Point, Pose, Size, SkinId, WorkArea
@@ -20,8 +21,13 @@ class PetControllerTests(unittest.TestCase):
             BehaviorDurations(walk_ms=1000, idle_ms=500, sleep_ms=800, react_ms=300, sleep_every=2),
         )
 
-    def test_walk_clamps_and_reverses_at_right_edge(self) -> None:
+    def test_walk_wraps_from_left_edge_and_keeps_heading_left(self) -> None:
         controller = self.make_controller()
+        controller.state = replace(
+            controller.state,
+            position=Point(10, 40),
+            direction=Direction.LEFT,
+        )
         controller.tick(500, WorkArea(0, 0, 100, 100), Size(20, 20))
         self.assertEqual(Point(80, 40), controller.state.position)
         self.assertEqual(Direction.LEFT, controller.state.direction)

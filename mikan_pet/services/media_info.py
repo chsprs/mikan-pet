@@ -48,7 +48,7 @@ def format_time_seconds(seconds: float) -> str:
     return f"{m:02d}:{s:02d}"
 
 
-def format_display_title(info: MediaTrackInfo, max_length: int = 24) -> str:
+def format_display_title(info: MediaTrackInfo, max_length: int | None = 24) -> str:
     """Format track and artist nicely, truncating if necessary."""
     if not info.has_track:
         return ""
@@ -58,9 +58,20 @@ def format_display_title(info: MediaTrackInfo, max_length: int = 24) -> str:
         text = f"{title} - {artist}"
     else:
         text = title
-    if len(text) > max_length:
+    if max_length is not None and len(text) > max_length:
         return text[: max_length - 3] + "..."
     return text
+
+
+def marquee_display_text(text: str, offset: int, max_length: int = 22) -> str:
+    """Return a fixed-width cyclic window for a long media title."""
+    if max_length <= 0:
+        raise ValueError("max_length must be positive")
+    if len(text) <= max_length:
+        return text
+    cycle = f"{text}   "
+    start = offset % len(cycle)
+    return (cycle + cycle)[start : start + max_length]
 
 
 class MediaInfoBackend(Protocol):

@@ -88,7 +88,7 @@ def _state_from_settings(
     walking = settings.walking
     return PetState(
         position=position,
-        direction=Direction.RIGHT,
+        direction=Direction.LEFT,
         motion=MotionMode.AUTOMATIC if walking else MotionMode.STOPPED,
         pose=Pose.WALK if walking else Pose.IDLE,
         skin=settings.skin,

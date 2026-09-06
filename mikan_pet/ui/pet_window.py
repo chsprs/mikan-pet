@@ -23,7 +23,12 @@ from mikan_pet.core.window_layout import (
     metrics_for_dpi,
     safe_pet_work_area,
 )
-from mikan_pet.services.media_info import MediaInfoService, format_display_title, format_time_seconds
+from mikan_pet.services.media_info import (
+    MediaInfoService,
+    format_display_title,
+    format_time_seconds,
+    marquee_display_text,
+)
 from mikan_pet.services.media_keys import MediaAction, MediaKeyService
 from mikan_pet.services.monitors import MonitorService, default_position
 from mikan_pet.services.settings import AppSettings
@@ -39,6 +44,7 @@ BROWN = "#9B5A37"
 MIKAN_ORANGE = "#E78145"
 ORANGE_PRESSED = "#D06B30"
 TICK_MS = 50
+TRACK_TITLE_SCROLL_STEP_NS = 200_000_000
 MAX_TICK_MS = 200
 
 
@@ -110,6 +116,8 @@ class PetWindow:
         self.frame_index = 0
         self._image_ref: object | None = None
         self._last_track_title = ""
+        self._track_title_scroll_offset = 0
+        self._track_title_scroll_last_ns = 0
         self._is_track_playing = False
         self._track_visible_until_ns = 0
         self._button_base_coords: dict[MediaAction, tuple[int, int, int, int, str, str]] = {}
@@ -638,10 +646,20 @@ class PetWindow:
         service.poll_if_due()
         track = service.current_track
         now_ns = time.monotonic_ns()
-        title_text = format_display_title(track, max_length=22)
-        if title_text and title_text != self._last_track_title:
-            self._last_track_title = title_text
+        full_title = format_display_title(track, max_length=None)
+        if full_title and full_title != self._last_track_title:
+            self._last_track_title = full_title
             self._track_visible_until_ns = now_ns + 4_000_000_000
+            self._track_title_scroll_offset = 0
+            self._track_title_scroll_last_ns = now_ns
+        elif full_title:
+            elapsed_ns = max(0, now_ns - self._track_title_scroll_last_ns)
+            steps = elapsed_ns // TRACK_TITLE_SCROLL_STEP_NS
+            if steps:
+                self._track_title_scroll_offset += int(steps)
+                self._track_title_scroll_last_ns += int(steps) * TRACK_TITLE_SCROLL_STEP_NS
+
+        title_text = marquee_display_text(full_title, self._track_title_scroll_offset)
 
         is_playing = bool(getattr(track, "is_playing", False))
         if is_playing != getattr(self, "_is_track_playing", False):
@@ -649,7 +667,8 @@ class PetWindow:
             self.canvas.itemconfigure("btn_text_play_pause", text="❚❚" if is_playing else "▶")
 
         should_show = bool(title_text) and (
-            self.controller.state.controls_visible or now_ns < self._track_visible_until_ns
+            self.controller.state.controls_visible
+            or now_ns < self._track_visible_until_ns
         )
         if not should_show:
             self.canvas.itemconfigure("track_bubble", state="hidden")

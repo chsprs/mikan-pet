@@ -227,7 +227,7 @@ class AppTests(unittest.TestCase):
         root_factory.assert_called_once()
         state = window_class.call_args.args[1].state
         self.assertEqual(
-            PetState(Point(300, 400), Direction.RIGHT, MotionMode.STOPPED, Pose.IDLE,
+            PetState(Point(300, 400), Direction.LEFT, MotionMode.STOPPED, Pose.IDLE,
                      SkinId.BYTE, False, False),
             state,
         )

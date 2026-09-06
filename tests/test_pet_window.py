@@ -386,6 +386,27 @@ class PetWindowTests(unittest.TestCase):
         self.assertEqual("normal", bubble_txt[0][1].get("state"))
         self.assertIn("Song A", bubble_txt[0][1].get("text"))
 
+    def test_long_track_title_scrolls_while_the_track_keeps_playing(self) -> None:
+        media_info = Mock()
+        media_info.current_track = MediaTrackInfo(
+            title="A Track Title That Is Long Enough To Scroll",
+            artist="Artist B",
+            is_playing=True,
+        )
+        window, _, _, _, _, _, _ = self.make_window(media_info_service=media_info)
+        window._last_track_title = ""
+
+        with patch("mikan_pet.ui.pet_window.time.monotonic_ns", return_value=1_000_000_000):
+            window._update_track_info()
+        initial_text = window.canvas.items_with_tag("track_bubble", kind="text")[0][1]["text"]
+
+        with patch("mikan_pet.ui.pet_window.time.monotonic_ns", return_value=2_000_000_000):
+            window._update_track_info()
+        scrolled_text = window.canvas.items_with_tag("track_bubble", kind="text")[0][1]["text"]
+
+        self.assertNotEqual(initial_text, scrolled_text)
+        self.assertTrue(scrolled_text.startswith("💿 "))
+
     def test_track_info_bubble_displays_timeline_pin_and_time_range(self) -> None:
         import time
         media_info = Mock()

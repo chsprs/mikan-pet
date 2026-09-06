@@ -85,7 +85,7 @@ class PetController:
         candidate = self.state.position.x + delta
         direction = self.state.direction
         if candidate <= minimum:
-            candidate, direction = maximum, Direction.LEFT
+            candidate, direction = minimum, Direction.RIGHT
             self._movement_remainder = 0.0
         elif candidate >= maximum:
             candidate, direction = maximum, Direction.LEFT

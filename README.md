@@ -4,15 +4,11 @@ Mikan Pet adalah kucing pixel-art kecil yang berjalan di atas jendela biasa dan 
 
 ## Instalasi
 
-1. Jalankan `MikanPet-Setup-x64.exe` pada Windows x64, atau `MikanPet-Setup-arm64.exe` pada Windows 11 ARM64.
+1. Jalankan `MikanPet-Setup-x64.exe` pada Windows 10/11 x64.
 2. Ikuti wizard dan, bila diinginkan, pilih shortcut Desktop opsional.
 3. Buka **Mikan Pet** dari Start Menu.
 
 Installer memasang aplikasi untuk pengguna saat ini dan tidak memerlukan Python terpisah.
-
-## Versi portabel
-
-Ekstrak **semua** isi `MikanPet-portable-x64.zip` atau `MikanPet-portable-arm64.zip` yang sesuai dengan perangkat ke satu folder terlebih dahulu, lalu jalankan `MikanPet.exe` dari folder hasil ekstrak. Jangan menjalankan EXE langsung dari dalam arsip ZIP.
 
 ## Kontrol & Fitur
 
@@ -22,7 +18,26 @@ Ekstrak **semua** isi `MikanPet-portable-x64.zip` atau `MikanPet-portable-arm64.
 - Tiga tombol media adalah **sebelumnya**, **putar/jeda**, dan **berikutnya**. Windows meneruskannya ke sesi media aktif.
 - **Judul Lagu yang Diputar**: Mikan Pet secara otomatis mendeteksi sesi media Windows (GSMTC) dan menampilkan judul lagu beserta artis dalam gelembung mini di atas kucing.
 - **Animasi Tidur Zzzz**: Ketika kucing tertidur (`SLEEP`), animasi huruf "Z" pixel-art naik secara prosedural.
-- **Pembaruan Otomatis In-Place**: Klik kanan dan pilih **Periksa Pembaruan** untuk mengecek versi baru di GitHub Releases dan memperbarui aplikasi secara otomatis tanpa perlu menjalankan installer setup ulang. Paket dipilih sesuai arsitektur dan checksum SHA-256 diverifikasi sebelum diekstrak.
+- **Pembaruan melalui Installer**: Klik kanan dan pilih **Periksa Pembaruan** untuk mengecek versi baru di GitHub Releases. Setelah disetujui, aplikasi mengunduh dan menjalankan installer x64. SHA-256 diverifikasi bila digest tersedia dari GitHub.
+
+## Animasi tambahan
+
+Kucing bergantian duduk melihat sekitar, membersihkan wajah, menggaruk telinga, mengibas ekor dan telinga, serta menerkam bola benang. Sebelum tidur kucing menguap, lalu meregangkan badan setelah bangun. Aktivitas tetap berjalan saat mode berjalan dihentikan, tanpa mengubah posisi pet.
+
+- Kursor yang mendekat saat istirahat menarik pandangan kucing, dengan jeda agar tidak terus menginterupsi aktivitas.
+- Klik memicu lompatan kecil sekaligus menampilkan/menyembunyikan kontrol media.
+- Setelah ambang drag terlewati, kucing menggantung dengan kaki rileks dan badan bergoyang mengikuti arah gerakan. Saat dilepas, kucing mendarat lalu melanjutkan pose dan mode sebelumnya.
+- Ketika media sedang diputar, kucing sesekali mengangguk di sela aktivitas. Gerakan mengikuti status pemutaran, bukan sinkronisasi ketukan audio.
+- Semua frame tambahan memakai kanvas 32 × 32 dan palet empat skin asli. Bentuk kepala dipertahankan tanpa peregangan gambar.
+- Lompatan dan pendaratan memakai frame perantara yang lebih rapat. Gerakan kecil kursor tidak membuat badan bergetar, dan aktivitas yang terpotong drag dilanjutkan dari tahap sebelumnya.
+
+Pratinjau semua frame dan animasi tanpa membuat installer:
+
+```powershell
+.\.venv\Scripts\python.exe -m scripts.preview_animations "$env:TEMP\MikanPet-animation-preview"
+```
+
+Buka `index.html` di folder keluaran untuk memilih skin, arah, jeda, atau melihat frame satu per satu.
 
 ## Skin
 
@@ -46,7 +61,7 @@ Preferensi, posisi, skin, status berjalan, gelembung kontrol, dan Always on top 
 
 ## Catatan keamanan
 
-Build rilis hanya ditandatangani Authenticode bila maintainer telah mengonfigurasi secret `WINDOWS_CERT_BASE64` dan `WINDOWS_CERT_PASSWORD` di GitHub Actions. Tanpa sertifikat tersebut, Windows SmartScreen dapat menampilkan peringatan **Unknown publisher**. Setiap rilis tetap menyediakan `SHA256SUMS.txt` dan provenance attestation untuk verifikasi paket.
+Build rilis hanya ditandatangani Authenticode bila maintainer telah mengonfigurasi secret `WINDOWS_CERT_BASE64` dan `WINDOWS_CERT_PASSWORD` di GitHub Actions. Tanpa sertifikat tersebut, Windows SmartScreen dapat menampilkan peringatan **Unknown publisher**. Rilis publik berisi tepat satu aset: `MikanPet-Setup-x64.exe`.
 
 ## Pengembangan dan build
 
@@ -60,7 +75,7 @@ py -3 -m venv .venv
 .\scripts\build.ps1 -Python '.\.venv\Scripts\python.exe' -Architecture x64
 ```
 
-Output x64 berada di `dist\MikanPet-Setup-x64.exe` dan `dist\MikanPet-portable-x64.zip`. Build ARM64 dijalankan pada Windows ARM64 dengan `-Architecture arm64` dan menghasilkan nama berakhiran `-arm64`.
+Paket distribusi berada di `dist\MikanPet-Setup-x64.exe`. Folder `dist\MikanPet` merupakan input internal untuk pembuatan installer.
 
 ## Alur Rilis & Push GitHub
 
@@ -74,11 +89,11 @@ Skrip ini akan secara otomatis:
 1. Memperbarui nomor versi di 4 berkas (`pyproject.toml`, `__init__.py`, `app.py`, `MikanPet.iss`).
 2. Menjalankan seluruh tes unit.
 3. Melakukan git commit dan tag `vX.Y.Z`.
-4. Mendorong commit dan tag ke GitHub (`git push origin main --tags`).
-5. Memantau workflow GitHub Actions hingga installer & portable zip selesai dibangun dan dipublikasikan di GitHub Releases.
+4. Mendorong commit dan tag ke GitHub (`git push origin main vX.Y.Z`).
+5. Memantau workflow GitHub Actions hingga installer Windows x64 selesai dibangun dan dipublikasikan di GitHub Releases.
 
 Detail dan panduan lengkap dapat dilihat pada skill `.agents/skills/mikan-release/SKILL.md`.
 
 ## Sistem yang didukung
 
-Target paket adalah Windows 10/11 x64 dan Windows 11 ARM64 native. Paket x64 juga dapat berjalan melalui emulasi pada Windows 11 ARM. Windows 7/8, Windows 32-bit, macOS, dan Linux tidak didukung.
+Aplikasi hanya mendukung Windows 10/11 x64 dengan distribusi installer `MikanPet-Setup-x64.exe`.

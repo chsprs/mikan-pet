@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
     [string]$Python = (Get-Command python -ErrorAction Stop).Source,
-    [ValidateSet('x64', 'arm64')]
+    [ValidateSet('x64')]
     [string]$Architecture = 'x64',
     [switch]$SkipInstaller,
     [string]$SigningCertificatePath = '',
@@ -70,7 +70,7 @@ function Find-SignTool {
     if (-not (Test-Path -LiteralPath $kitsRoot)) {
         throw 'signtool.exe was not found in PATH or the Windows SDK.'
     }
-    $toolArchitecture = if ($Architecture -eq 'arm64') { 'arm64' } else { 'x64' }
+    $toolArchitecture = 'x64'
     $candidate = Get-ChildItem -LiteralPath $kitsRoot -Filter signtool.exe -File -Recurse |
         Where-Object { $_.Directory.Name -eq $toolArchitecture } |
         Sort-Object FullName -Descending |
@@ -106,7 +106,7 @@ try {
         throw "Could not inspect selected Python interpreter: $Python"
     }
     $parts = $pythonInfo -split '\|', 3
-    $expectedMachines = if ($Architecture -eq 'arm64') { @('ARM64', 'AARCH64') } else { @('AMD64', 'X86_64') }
+    $expectedMachines = @('AMD64', 'X86_64')
     if ($parts.Count -ne 3 -or $parts[0] -ne '64' -or $parts[1].ToUpperInvariant() -notin $expectedMachines) {
         throw "Selected Python must be a 64-bit $Architecture interpreter; got: $pythonInfo"
     }
@@ -115,10 +115,9 @@ try {
     Invoke-Checked $Python @('-m', 'unittest', 'discover', '-s', 'tests', '-v')
     $buildDirectory = Join-Path $ProjectRoot 'build'
     $applicationDirectory = Join-Path $ProjectRoot 'dist\MikanPet'
-    $portableZip = Join-Path $ProjectRoot "dist\MikanPet-portable-$Architecture.zip"
     $installer = Join-Path $ProjectRoot "dist\MikanPet-Setup-$Architecture.exe"
     $specFile = Join-Path $ProjectRoot 'MikanPet.spec'
-    foreach ($target in @($buildDirectory, $applicationDirectory, $portableZip, $installer, $specFile)) {
+    foreach ($target in @($buildDirectory, $applicationDirectory, $installer, $specFile)) {
         Remove-RepositoryItem $target
     }
 
@@ -152,7 +151,7 @@ try {
         throw "Built executable has an invalid PE header: $executable"
     }
     $machine = [BitConverter]::ToUInt16($bytes, $peOffset + 4)
-    $expectedPeMachine = if ($Architecture -eq 'arm64') { 0xAA64 } else { 0x8664 }
+    $expectedPeMachine = 0x8664
     if ($machine -ne $expectedPeMachine) {
         throw ('Built executable must have PE Machine 0x{0:X4}; got 0x{1:X4}' -f $expectedPeMachine, $machine)
     }
@@ -165,11 +164,6 @@ try {
     Invoke-CodeSigning $executable
     Invoke-Checked $executable @('--smoke-test')
     Invoke-Checked $Python @((Join-Path $ProjectRoot 'scripts\verify_gui_smoke.py'), $executable)
-
-    Compress-Archive -Path (Join-Path $applicationDirectory '*') -DestinationPath $portableZip -Force
-    if (-not (Test-Path -LiteralPath $portableZip) -or (Get-Item -LiteralPath $portableZip).Length -le 0) {
-        throw "Portable archive was not created: $portableZip"
-    }
 
     if (-not $SkipInstaller) {
         $iscc = Find-Iscc
@@ -185,8 +179,6 @@ try {
         Invoke-CodeSigning $installer
     }
 
-    $portableHash = (Get-FileHash -LiteralPath $portableZip -Algorithm SHA256).Hash
-    Write-Host "SHA256 $portableZip $portableHash"
     if (-not $SkipInstaller) {
         $installerHash = (Get-FileHash -LiteralPath $installer -Algorithm SHA256).Hash
         Write-Host "SHA256 $installer $installerHash"

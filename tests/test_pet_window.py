@@ -116,6 +116,37 @@ class PetWindowTests(unittest.TestCase):
             watcher_factory.instance,
         )
 
+    def test_drag_renders_carried_immediately_at_all_supported_dpi_scales(self) -> None:
+        for dpi in (96, 144, 192):
+            window, _, controller, cache, _, _, _ = self.make_window(dpi=dpi)
+            window._on_pet_press(event_at(210, 310))
+            window._on_pet_motion(event_at(260, 310))
+            self.assertEqual(Pose.CARRIED, controller.state.pose)
+            self.assertEqual(Pose.CARRIED, cache.get_calls[-1][1])
+            self.assertEqual(1, cache.get_calls[-1][2])
+            window._on_pet_release(event_at(260, 310))
+            self.assertEqual(Pose.LAND, cache.get_calls[-1][1])
+
+    def test_nearby_pointer_triggers_look_and_distant_pointer_does_not(self) -> None:
+        window, root, controller, *_ = self.make_window(motion=MotionMode.STOPPED, pose=Pose.IDLE)
+        root.pointer = Point(2000, 2000)
+        window._notice_pointer()
+        self.assertEqual(Pose.IDLE, controller.state.pose)
+        root.pointer = Point(300, 380)
+        window._notice_pointer()
+        self.assertEqual(Pose.LOOK, controller.state.pose)
+        self.assertEqual(4, controller.look_frame)
+
+    def test_new_click_restarts_jump_frames_while_retaining_original_pose(self) -> None:
+        window, _, controller, cache, *_ = self.make_window(motion=MotionMode.STOPPED, pose=Pose.IDLE)
+        for _ in range(2):
+            window._on_pet_press(event_at(220, 320))
+            window._on_pet_release(event_at(220, 320))
+            self.assertEqual((Pose.JUMP, 0), cache.get_calls[-1][1:3])
+            window.frame_index = window.animation_clock.advance(Pose.JUMP, 540, frame_count(Pose.JUMP))
+        controller.tick(controller.durations.jump_ms, WorkArea(0, 0, 800, 600), window.metrics.pet_size)
+        self.assertEqual(Pose.IDLE, controller.state.pose)
+
     def test_draws_scaled_controls_and_pet_with_semantic_tags(self) -> None:
         window, root, _, _, _, _, _ = self.make_window(dpi=144)
         canvas = window.canvas
@@ -165,6 +196,8 @@ class PetWindowTests(unittest.TestCase):
         window._on_pet_press(event_at(220, 320))
         window._on_pet_release(event_at(220, 320))
         self.assertEqual(MotionMode.STOPPED, controller.state.motion)
+        self.assertEqual(Pose.JUMP, controller.state.pose)
+        controller.tick(controller.durations.jump_ms, WorkArea(0, 0, 800, 600), window.metrics.pet_size)
         self.assertEqual(Pose.SLEEP, controller.state.pose)
         self.assertTrue(controller.state.controls_visible)
         self.assertEqual(1, len(settings))
@@ -197,7 +230,7 @@ class PetWindowTests(unittest.TestCase):
         window._on_pet_release(event_at(900, 700))
         self.assertEqual(Point(628, 472), controller.state.position)
         self.assertEqual(MotionMode.STOPPED, controller.state.motion)
-        self.assertEqual(Pose.IDLE, controller.state.pose)
+        self.assertEqual(Pose.LAND, controller.state.pose)
         self.assertEqual(controller.state.position, settings[-1].position)
 
     def test_media_tags_do_not_use_pet_bindings_and_media_reacts_immediately(self) -> None:

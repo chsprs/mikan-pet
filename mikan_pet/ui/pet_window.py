@@ -7,6 +7,7 @@ import tkinter as tk
 from collections.abc import Callable
 from tkinter import messagebox
 
+from mikan_pet.core.animation_frames import FRAME_INTERVAL_MS
 from mikan_pet.core.gesture import (
     BASE_DPI,
     GestureResult,
@@ -16,7 +17,7 @@ from mikan_pet.core.gesture import (
 )
 from mikan_pet.core.sprites import SKINS, frame_count
 from mikan_pet.core.state import PetController
-from mikan_pet.core.types import MotionMode, Point, Pose, SkinId
+from mikan_pet.core.types import Direction, MotionMode, Point, Pose, SkinId
 from mikan_pet.core.window_layout import (
     DpiMetrics,
     calculate_window_layout,
@@ -56,16 +57,23 @@ class AnimationClock:
         self.last_pose: Pose | None = None
         self.elapsed_ms = 0
 
-    def advance(self, pose: Pose, elapsed_ms: int, frame_count: int) -> int:
+    def advance(self, pose: Pose, elapsed_ms: int, frame_count: int, *, phase_elapsed_ms: int | None = None) -> int:
         if frame_count <= 0:
             raise ValueError("frame_count must be positive")
-        if pose is not self.last_pose:
-            self.last_pose = pose
+        changed = pose is not self.last_pose
+        self.last_pose = pose
+        if phase_elapsed_ms is not None:
+            self.elapsed_ms = max(0, phase_elapsed_ms)
+        elif changed:
             self.elapsed_ms = 0
-            return 0
-        period = self.frame_ms * frame_count
-        self.elapsed_ms = (self.elapsed_ms + max(0, elapsed_ms)) % period
-        return self.elapsed_ms // self.frame_ms
+        else:
+            self.elapsed_ms += max(0, elapsed_ms)
+        interval = FRAME_INTERVAL_MS.get(pose, self.frame_ms)
+        if pose in FRAME_INTERVAL_MS and pose not in (Pose.MUSIC, Pose.CARRIED):
+            # One-shot gestures hold their final frame until the controller transitions.
+            return min(self.elapsed_ms // interval, frame_count - 1)
+        self.elapsed_ms %= interval * frame_count
+        return self.elapsed_ms // interval
 
 
 def configure_pet_root(root: object, transparent_color: str, always_on_top: bool) -> None:
@@ -476,6 +484,7 @@ class PetWindow:
             return
         if self.controller.state.motion is not MotionMode.DRAGGING:
             self.controller.begin_drag()
+            self._redraw_current_pose()
         proposed = position_from_pointer(pointer, self.logical_drag_offset, self.metrics.dpi)
         self.controller.drag_to(proposed)
         target = self.monitor_service.drag_target(
@@ -484,6 +493,7 @@ class PetWindow:
             self.last_intersected_id,
         )
         self.last_intersected_id = target.id
+        self._redraw_image()
         self._apply_window_layout()
 
     def _on_pet_release(self, event) -> None:
@@ -496,6 +506,9 @@ class PetWindow:
         if result is GestureResult.CLICK:
             visible = not self.controller.state.controls_visible
             self.controller.set_controls_visible(visible)
+            self.controller.react(jump=True)
+            self.animation_clock.last_pose = None
+            self._redraw_current_pose()
             target = self.monitor_service.current_for(
                 self.controller.state.position,
                 self.metrics.pet_size,
@@ -607,15 +620,23 @@ class PetWindow:
 
     def _redraw_current_pose(self) -> None:
         pose = self.controller.state.pose
-        self.frame_index = self.animation_clock.advance(pose, 0, frame_count(pose))
+        self.frame_index = self.animation_clock.advance(
+            pose, 0, frame_count(pose),
+            phase_elapsed_ms=self.controller.phase_elapsed_ms if pose in FRAME_INTERVAL_MS else None,
+        )
         self._redraw_image()
 
     def _redraw_image(self) -> None:
         state = self.controller.state
+        frame = self.frame_index
+        if state.pose is Pose.CARRIED:
+            frame = self.controller.carried_frame
+        elif self.controller.look_frame is not None:
+            frame = self.controller.look_frame
         self._image_ref = self.sprite_cache.get(
             state.skin,
             state.pose,
-            self.frame_index,
+            frame,
             state.direction,
         )
         self.canvas.itemconfigure("pet", image=self._image_ref)
@@ -662,6 +683,7 @@ class PetWindow:
         title_text = marquee_display_text(full_title, self._track_title_scroll_offset)
 
         is_playing = bool(getattr(track, "is_playing", False))
+        self.controller.set_music_playing(is_playing)
         if is_playing != getattr(self, "_is_track_playing", False):
             self._is_track_playing = is_playing
             self.canvas.itemconfigure("btn_text_play_pause", text="❚❚" if is_playing else "▶")
@@ -796,7 +818,9 @@ class PetWindow:
             return TICK_MS
         if state.pose is Pose.REACT:
             return TICK_MS
-        return 180
+        if state.pose in (Pose.JUMP, Pose.LAND):
+            return 30
+        return min(180, FRAME_INTERVAL_MS.get(state.pose, 180))
 
     def _schedule_tick(self) -> None:
         if not self._closing:
@@ -817,6 +841,17 @@ class PetWindow:
         )
         self.last_intersected_id = target.id
 
+    def _notice_pointer(self) -> None:
+        state = self.controller.state
+        if state.motion is MotionMode.DRAGGING or state.pose not in (Pose.IDLE, Pose.SIT, Pose.TAIL, Pose.LOOK):
+            return
+        x, y = self.root.winfo_pointerx(), self.root.winfo_pointery()
+        center_x = state.position.x + self.metrics.pet_size.width // 2
+        center_y = state.position.y + self.metrics.pet_size.height * 3 // 4
+        radius = self._scale(90)
+        if (x - center_x) ** 2 + (y - center_y) ** 2 <= radius ** 2:
+            self.controller.look_at(Direction.RIGHT if x >= center_x else Direction.LEFT)
+
     def _tick(self) -> None:
         if self._closing:
             return
@@ -831,6 +866,7 @@ class PetWindow:
             state.controls_visible,
             self.metrics,
         )
+        self._notice_pointer()
         state = self.controller.tick(
             elapsed_ms,
             movement_area,
@@ -841,6 +877,7 @@ class PetWindow:
             state.pose,
             elapsed_ms,
             frame_count(state.pose),
+            phase_elapsed_ms=self.controller.phase_elapsed_ms if state.pose in FRAME_INTERVAL_MS else None,
         )
         self._redraw_image()
         self._apply_window_layout()

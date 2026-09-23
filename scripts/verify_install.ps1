@@ -52,10 +52,12 @@ $peOffset = [BitConverter]::ToInt32($bytes, 0x3C)
 $machine = [BitConverter]::ToUInt16($bytes, $peOffset + 4)
 $architecture = switch ($machine) {
     0x8664 { "x64 (OK)" }
-    0xAA64 { "ARM64 (OK)" }
     default { "Tidak didukung (PE 0x{0:X4})" -f $machine }
 }
-$is64Bit = ($machine -in @(0x8664, 0xAA64))
+$isX64 = ($machine -eq 0x8664)
+if (-not $isX64) {
+    throw "Mikan Pet requires an x64 executable: $architecture"
+}
 
 $internalDir = Join-Path (Split-Path $detectedExe) "_internal"
 $hasInternal = Test-Path -LiteralPath $internalDir

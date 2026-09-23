@@ -1,14 +1,12 @@
 #define MyAppName "Mikan Pet"
 #ifndef MyAppVersion
-  #define MyAppVersion "0.1.14"
+  #define MyAppVersion "0.1.15"
 #endif
 #ifndef MyArchitecture
   #define MyArchitecture "x64"
 #endif
-#if MyArchitecture == "arm64"
-  #define MyAllowedArchitecture "arm64"
-#else
-  #define MyAllowedArchitecture "x64compatible"
+#if MyArchitecture != "x64"
+  #error "Mikan Pet supports Windows x64 only"
 #endif
 #define MyAppPublisher "Mikan Pet"
 #define MyAppExeName "MikanPet.exe"
@@ -16,11 +14,7 @@
   #define MyAppId "{{8BC15C2A-D035-4EE2-A984-39137E4294E1}"
 #endif
 #ifndef MyOutputBaseFilename
-  #if MyArchitecture == "arm64"
-    #define MyOutputBaseFilename "MikanPet-Setup-arm64"
-  #else
-    #define MyOutputBaseFilename "MikanPet-Setup-x64"
-  #endif
+  #define MyOutputBaseFilename "MikanPet-Setup-x64"
 #endif
 #ifndef MySmokeBuild
   #define MySmokeBuild 0
@@ -37,8 +31,8 @@ AppPublisher={#MyAppPublisher}
 DefaultDirName={autopf}\Mikan Pet
 DefaultGroupName=Mikan Pet
 DisableProgramGroupPage=yes
-ArchitecturesAllowed={#MyAllowedArchitecture}
-ArchitecturesInstallIn64BitMode={#MyAllowedArchitecture}
+ArchitecturesAllowed=x64os
+ArchitecturesInstallIn64BitMode=x64os
 MinVersion=10.0
 PrivilegesRequired=lowest
 AppMutex={#MyAppMutex}

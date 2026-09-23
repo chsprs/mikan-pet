@@ -9,6 +9,13 @@ param(
 
 $ErrorActionPreference = "Stop"
 $ProjectRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
+if (-not (Get-Command gh -ErrorAction SilentlyContinue)) {
+    throw "GitHub CLI (gh) is required to verify the release."
+}
+function Update-VersionFile([string]$Path, [string]$Pattern, [string]$Replacement) {
+    $content = [IO.File]::ReadAllText($Path, [Text.Encoding]::UTF8) -replace $Pattern, $Replacement
+    [IO.File]::WriteAllText($Path, $content, [Text.UTF8Encoding]::new($false))
+}
 
 # Standardize version format: e.g. 0.1.6
 $cleanVersion = $Version.Trim().TrimStart('v', 'V')
@@ -28,16 +35,16 @@ if (-not $Python) {
 
 Write-Host "==> 1/5 Bumping version to $cleanVersion across 4 files..."
 $pyproject = Join-Path $ProjectRoot 'pyproject.toml'
-(Get-Content $pyproject -Raw) -replace '(?m)^version\s*=\s*"[^"]+"', "version = `"$cleanVersion`"" | Set-Content $pyproject -NoNewline
+Update-VersionFile $pyproject '(?m)^version\s*=\s*"[^"]+"' "version = `"$cleanVersion`""
 
 $initPy = Join-Path $ProjectRoot 'mikan_pet\__init__.py'
-(Get-Content $initPy -Raw) -replace '(?m)^__version__\s*=\s*"[^"]+"', "__version__ = `"$cleanVersion`"" | Set-Content $initPy -NoNewline
+Update-VersionFile $initPy '(?m)^__version__\s*=\s*"[^"]+"' "__version__ = `"$cleanVersion`""
 
 $appPy = Join-Path $ProjectRoot 'mikan_pet\app.py'
-(Get-Content $appPy -Raw) -replace '(?m)^VERSION\s*=\s*"[^"]+"', "VERSION = `"$cleanVersion`"" | Set-Content $appPy -NoNewline
+Update-VersionFile $appPy '(?m)^VERSION\s*=\s*"[^"]+"' "VERSION = `"$cleanVersion`""
 
 $iss = Join-Path $ProjectRoot 'installer\MikanPet.iss'
-(Get-Content $iss -Raw) -replace '(?m)#define MyAppVersion\s*"[^"]+"', "#define MyAppVersion `"$cleanVersion`"" | Set-Content $iss -NoNewline
+Update-VersionFile $iss '(?m)#define MyAppVersion\s*"[^"]+"' "#define MyAppVersion `"$cleanVersion`""
 
 Write-Host "==> 2/5 Running all unit tests..."
 & $Python -m unittest discover -s (Join-Path $ProjectRoot 'tests')
@@ -55,20 +62,27 @@ if ($LASTEXITCODE -ne 0) {
 $tag = "v$cleanVersion"
 Write-Host "==> 4/5 Tagging $tag..."
 git -C $ProjectRoot tag $tag
+if ($LASTEXITCODE -ne 0) { throw "Could not create release tag $tag." }
+$releaseCommit = (git -C $ProjectRoot rev-parse $tag).Trim()
 
 Write-Host "==> 5/5 Pushing main and $tag to GitHub..."
-git -C $ProjectRoot push origin main --tags
+git -C $ProjectRoot push origin main $tag
 if ($LASTEXITCODE -ne 0) {
     throw "Git push failed!"
 }
 
-Write-Host "==> Release $tag pushed! GitHub Actions will build installer & portable zip."
+Write-Host "==> Release $tag pushed! GitHub Actions will build the Windows x64 installer."
 if (-not (Get-Command gh -ErrorAction SilentlyContinue)) {
     throw "GitHub CLI (gh) diperlukan untuk membuktikan hasil rilis."
 }
 Write-Host "Menunggu status GitHub Actions..."
-Start-Sleep -Seconds 5
-$runId = (gh run list --workflow=release.yml --limit=1 --json databaseId -q '.[0].databaseId')
+$runId = $null
+for ($attempt = 0; $attempt -lt 12; $attempt++) {
+    $runId = (gh run list --repo chsprs/mikan-pet --workflow release.yml --commit $releaseCommit --branch $tag --event push --limit 1 --json databaseId -q '.[0].databaseId')
+    if ($LASTEXITCODE -ne 0) { throw "Could not query release workflow." }
+    if ($runId) { break }
+    Start-Sleep -Seconds 5
+}
 if (-not $runId) {
     throw "Workflow rilis tidak ditemukan setelah tag $tag didorong."
 }

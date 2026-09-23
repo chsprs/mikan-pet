@@ -9,3 +9,4 @@ dist/
 *.spec
 installer/output/
 assets/MikanPet.ico
+*.egg-info/

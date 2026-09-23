@@ -20,6 +20,18 @@ class Pose(str, Enum):
     IDLE = "idle"
     SLEEP = "sleep"
     REACT = "react"
+    GROOM = "groom"
+    STRETCH = "stretch"
+    SCRATCH = "scratch"
+    TAIL = "tail"
+    LOOK = "look"
+    JUMP = "jump"
+    MUSIC = "music"
+    YAWN = "yawn"
+    SIT = "sit"
+    PLAY = "play"
+    CARRIED = "carried"
+    LAND = "land"
 
 
 class Direction(int, Enum):

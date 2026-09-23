@@ -34,6 +34,17 @@ def _find_iscc() -> Path | None:
 
 
 class PackagingContractTests(unittest.TestCase):
+    @unittest.skipUnless(os.name == "nt", "Windows build script")
+    def test_build_rejects_unsupported_architecture_before_building(self) -> None:
+        result = subprocess.run(
+            ["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass",
+             "-File", str(ROOT / "scripts" / "build.ps1"),
+             "-Python", "unused-python", "-Architecture", "arm64"],
+            cwd=ROOT, text=True, capture_output=True, check=False,
+        )
+        self.assertNotEqual(0, result.returncode)
+        self.assertIn("ParameterArgumentValidationError", result.stderr)
+
     def test_version_info_generator_embeds_product_version(self) -> None:
         from scripts.generate_version_info import render_version_info
 

@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from enum import Enum
 
+from mikan_pet.core.animation_frames import extra_grids
 from mikan_pet.core.types import Direction, Pose, SkinId
 
 
@@ -422,6 +423,8 @@ _SLEEP = (_T_SLEEP_0, _T_SLEEP_1, _T_SLEEP_2, _T_SLEEP_3)
 _REACT = (_T_REACT,)
 
 FRAMES = {Pose.WALK: _WALK, Pose.IDLE: _IDLE, Pose.SLEEP: _SLEEP, Pose.REACT: _REACT}
+FRAMES.update({pose: tuple(_ascii_to_template(grid) for grid in grids)
+               for pose, grids in extra_grids(_GRID_STAND, _GRID_BLINK).items()})
 
 
 def validate_registry() -> list[str]:

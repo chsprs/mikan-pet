@@ -48,7 +48,14 @@ class PetControllerTests(unittest.TestCase):
         controller = self.make_controller()
         controller.toggle_walking()
         stopped_at = controller.state.position
-        controller.tick(1500, WorkArea(0, 0, 500, 300), Size(20, 20))
+        observed = set()
+        for _ in range(400):
+            controller.tick(100, WorkArea(0, 0, 500, 300), Size(20, 20))
+            observed.add(controller.state.pose)
+            self.assertEqual(stopped_at, controller.state.position)
+            if controller.state.pose is Pose.SLEEP:
+                break
+        self.assertIn(Pose.YAWN, observed)
         self.assertEqual(Pose.SLEEP, controller.state.pose)
         self.assertEqual(stopped_at, controller.state.position)
 
@@ -68,6 +75,8 @@ class PetControllerTests(unittest.TestCase):
         controller.drag_to(Point(12, 18))
         controller.end_drag()
         self.assertEqual(MotionMode.STOPPED, controller.state.motion)
+        self.assertEqual(Pose.LAND, controller.state.pose)
+        controller.tick(controller.durations.land_ms, WorkArea(0, 0, 100, 100), Size(20, 20))
         self.assertEqual(Pose.IDLE, controller.state.pose)
 
     def test_drag_position_is_unbounded_until_release_policy_clamps_it(self) -> None:
@@ -97,13 +106,22 @@ class PetControllerTests(unittest.TestCase):
 
     def test_idle_cycle_enters_sleep_on_configured_interval(self) -> None:
         controller = self.make_controller()
-        area = WorkArea(0, 0, 500, 300)
-        controller.tick(1000, area, Size(20, 20))
-        self.assertEqual(Pose.IDLE, controller.state.pose)
-        controller.tick(500, area, Size(20, 20))
-        self.assertEqual(Pose.WALK, controller.state.pose)
-        controller.tick(1000, area, Size(20, 20))
+        area, size = WorkArea(0, 0, 500, 300), Size(20, 20)
+        for cycle in (1, 2):
+            controller.tick(1000, area, size)
+            self.assertEqual(Pose.SIT, controller.state.pose)
+            controller.tick(controller.durations.activity_ms, area, size)
+            self.assertIn(controller.state.pose, controller.REST_ACTIVITIES)
+            controller.tick(controller.durations.activity_ms, area, size)
+            self.assertEqual(Pose.IDLE, controller.state.pose)
+            controller.tick(500, area, size)
+            self.assertEqual(Pose.WALK if cycle == 1 else Pose.YAWN, controller.state.pose)
+        controller.tick(controller.durations.activity_ms, area, size)
         self.assertEqual(Pose.SLEEP, controller.state.pose)
+        controller.tick(800, area, size)
+        self.assertEqual(Pose.STRETCH, controller.state.pose)
+        controller.tick(controller.durations.stretch_ms, area, size)
+        self.assertEqual(Pose.WALK, controller.state.pose)
 
     def test_reaction_returns_to_prior_motion_pose(self) -> None:
         controller = self.make_controller()

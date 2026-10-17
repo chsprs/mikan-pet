@@ -47,33 +47,39 @@ class SpriteRegistryTests(unittest.TestCase):
         self.assertNotEqual(byte, ash)
         self.assertNotEqual(mochi, ash)
 
-    def test_walk_only_shifts_body_and_alternates_legs(self) -> None:
+    def test_walk_passing_frames_lift_the_body_and_contacts_swap_legs(self) -> None:
         walk_frames = FRAMES[Pose.WALK]
         self.assertEqual(4, len(walk_frames))
-        # Frame 1 bobs body up compared to Frame 0
-        ears_f0 = [r for r in walk_frames[0].rectangles if r.role is ColorRole.DARK and r.y == 13]
-        ears_f1 = [r for r in walk_frames[1].rectangles if r.role is ColorRole.DARK and r.y == 12]
-        self.assertTrue(len(ears_f0) > 0)
-        self.assertTrue(len(ears_f1) > 0)
-        # Frame 0 and Frame 2 have distinct alternating paw coordinates
+        tops = [min(rect.y for rect in frame.rectangles) for frame in walk_frames]
+        self.assertEqual(tops[0] - 1, tops[1])
+        self.assertEqual(tops[0], tops[2])
         paws_f0 = [r for r in walk_frames[0].rectangles if r.y >= 27]
         paws_f2 = [r for r in walk_frames[2].rectangles if r.y >= 27]
         self.assertNotEqual(paws_f0, paws_f2)
 
-    def test_sleep_closed_eyes_are_dark_rectangles(self) -> None:
-        eyes = [rect for rect in FRAMES[Pose.SLEEP][0].rectangles if rect.role is ColorRole.DARK and rect.y == 23]
-        self.assertTrue(any(rect.width >= 3 for rect in eyes))
+    def test_sleeping_cat_keeps_its_eyes_closed(self) -> None:
+        for frame in FRAMES[Pose.SLEEP]:
+            self.assertFalse([rect for rect in frame.rectangles if rect.role is ColorRole.EYE])
 
-    def test_react_replaces_ears_with_raised_ears(self) -> None:
-        react_ears = [rect for rect in FRAMES[Pose.REACT][0].rectangles if rect.role is ColorRole.COLLAR and rect.y == 11]
-        stand_ears = [rect for rect in FRAMES[Pose.IDLE][0].rectangles if rect.role is ColorRole.COLLAR and rect.y == 11]
-        self.assertEqual(2, len(react_ears))
-        self.assertEqual(0, len(stand_ears))
+    def test_react_perks_ears_and_smiles(self) -> None:
+        react_top = min(rect.y for rect in FRAMES[Pose.REACT][0].rectangles)
+        idle_top = min(rect.y for rect in FRAMES[Pose.IDLE][0].rectangles)
+        self.assertEqual(idle_top - 1, react_top)
+        self.assertFalse([rect for rect in FRAMES[Pose.REACT][0].rectangles if rect.role is ColorRole.EYE])
 
-    def test_sleep_pose_has_four_animated_frames_with_z_indicators(self) -> None:
+    def test_sleep_breathes_while_zs_rise_in_every_frame(self) -> None:
         sleep_frames = FRAMES[Pose.SLEEP]
-        self.assertEqual(4, len(sleep_frames))
-        self.assertGreater(len(sleep_frames[3].rectangles), len(sleep_frames[0].rectangles))
+        self.assertEqual(8, len(sleep_frames))
+        z_layouts = []
+        for frame in sleep_frames:
+            zs = sorted((r.x, r.y) for r in frame.rectangles if r.role is ColorRole.PATCH_TWO)
+            self.assertTrue(zs)
+            z_layouts.append(zs)
+        for current, following in zip(z_layouts, z_layouts[1:] + z_layouts[:1]):
+            self.assertNotEqual(current, following)
+        backs = {min(r.y for r in frame.rectangles if r.role is not ColorRole.PATCH_TWO and r.x < 10)
+                 for frame in sleep_frames}
+        self.assertEqual(2, len(backs))
 
 
 if __name__ == "__main__":

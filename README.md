@@ -18,7 +18,7 @@ Installer memasang aplikasi untuk pengguna saat ini dan tidak memerlukan Python 
 - Tiga tombol media adalah **sebelumnya**, **putar/jeda**, dan **berikutnya**. Windows meneruskannya ke sesi media aktif.
 - **Judul Lagu yang Diputar**: Mikan Pet secara otomatis mendeteksi sesi media Windows (GSMTC) dan menampilkan judul lagu beserta artis dalam gelembung mini di atas kucing.
 - **Animasi Tidur Zzzz**: Ketika kucing tertidur (`SLEEP`), animasi huruf "Z" pixel-art naik secara prosedural.
-- **Pembaruan melalui Installer**: Klik kanan dan pilih **Periksa Pembaruan** untuk mengecek versi baru di GitHub Releases. Setelah disetujui, aplikasi mengunduh dan menjalankan installer x64. SHA-256 diverifikasi bila digest tersedia dari GitHub.
+- **Pembaruan melalui Installer**: Klik kanan dan pilih **Periksa Pembaruan** untuk mengecek versi baru di GitHub Releases. Dialog menampilkan versi terpasang, versi terbaru, dan catatan rilis. Setelah disetujui, aplikasi mengunduh installer x64, membukanya, lalu menutup diri; pengaturan tetap tersimpan. SHA-256 diverifikasi bila digest tersedia dari GitHub, dan installer yang tidak cocok tidak dijalankan.
 
 ## Animasi tambahan
 
@@ -27,8 +27,10 @@ Kucing bergantian duduk melihat sekitar, membersihkan wajah, menggaruk telinga, 
 - Kursor yang mendekat saat istirahat menarik pandangan kucing, dengan jeda agar tidak terus menginterupsi aktivitas.
 - Klik memicu lompatan kecil sekaligus menampilkan/menyembunyikan kontrol media.
 - Setelah ambang drag terlewati, kucing menggantung dengan kaki rileks dan badan bergoyang mengikuti arah gerakan. Saat dilepas, kucing mendarat lalu melanjutkan pose dan mode sebelumnya.
-- Ketika media sedang diputar, kucing sesekali mengangguk di sela aktivitas. Gerakan mengikuti status pemutaran, bukan sinkronisasi ketukan audio.
-- Semua frame tambahan memakai kanvas 32 × 32 dan palet empat skin asli. Bentuk kepala dipertahankan tanpa peregangan gambar.
+- Ketika media sedang diputar, kucing sesekali mengangguk dengan mata tersenyum dan not musik melayang. Gerakan mengikuti status pemutaran, bukan sinkronisasi ketukan audio.
+- Semua frame memakai kanvas 32 × 32 dan palet empat skin asli. Kepala yang sama (telinga simetris, mata berpupil, hidung, dan kumis) dipakai utuh di setiap pose tanpa peregangan gambar.
+- Saat berjalan kucing tampil dari samping dengan empat kaki yang melangkah bergantian, dan badannya naik 1 piksel di setiap langkah. Saat tidur kucing meringkuk dengan ekor melingkar dan napas pelan.
+- Huruf "Z" saat tidur dan not musik saat mengangguk tetap terbaca benar ketika kucing menghadap kiri.
 - Lompatan dan pendaratan memakai frame perantara yang lebih rapat. Gerakan kecil kursor tidak membuat badan bergetar, dan aktivitas yang terpotong drag dilanjutkan dari tahap sebelumnya.
 
 Pratinjau semua frame dan animasi tanpa membuat installer:

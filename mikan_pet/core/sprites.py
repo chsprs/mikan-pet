@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from enum import Enum
 
-from mikan_pet.core.animation_frames import extra_grids
+from mikan_pet.core.animation_frames import OVERLAY_POSES, pose_grids
 from mikan_pet.core.types import Direction, Pose, SkinId
 
 
@@ -125,306 +125,8 @@ def _ascii_to_template(grid: list[str]) -> FrameTemplate:
     return FrameTemplate(tuple(merged))
 
 
-# 32x32 Pixel Art Grids (facing RIGHT, mirrored horizontally for LEFT)
-_GRID_STAND = [
-    "................................",
-    "................................",
-    "................................",
-    "................................",
-    "................................",
-    "................................",
-    "................................",
-    "................................",
-    "................................",
-    "................................",
-    "................................",
-    "................................",
-    "................................",
-    ".............XXX.....XXX........",
-    "............XOOPXXXXXOOPX.......",
-    "............XPOOSSSSOOPPX.......",
-    "............XOOOSOOOSOOOX.......",
-    "............XOOOOOOOOOOOX.......",
-    "............XSOOWOOOWOOSX.......",
-    "..........XXXOOOXOXOXOOOXXX.....",
-    "............XSOOOOOOOOOSX.......",
-    "..........XXXOOOOOOOOOOOXXX.....",
-    "......XXX....XXOOOOOOOXX........",
-    ".....XOSSX.....XOOOOOX..........",
-    ".....XOSOSX...XSSOOBBX..........",
-    "......XXXSOX.XSSOOBBBX..........",
-    ".........XOOXSSOOBBBBX..........",
-    "..........XOSOOOOBBBBX..........",
-    "...........XXOOXOOXOOX..........",
-    ".............XXXXXXXX...........",
-    "................................",
-    "................................",
-]
-
-_GRID_BLINK = [
-    "................................",
-    "................................",
-    "................................",
-    "................................",
-    "................................",
-    "................................",
-    "................................",
-    "................................",
-    "................................",
-    "................................",
-    "................................",
-    "................................",
-    "................................",
-    ".............XXX.....XXX........",
-    "............XOOPXXXXXOOPX.......",
-    "............XPOOSSSSOOPPX.......",
-    "............XOOOSOOOSOOOX.......",
-    "............XOOOOOOOOOOOX.......",
-    "............XSOOOOOOOOOSX.......",
-    "..........XXXOOOXXXOXOOOXXX.....",
-    "............XSOOOOOOOOOSX.......",
-    "..........XXXOOOOOOOOOOOXXX.....",
-    "......XXX....XXOOOOOOOXX........",
-    ".....XOSSX.....XOOOOOX..........",
-    ".....XOSOSX...XSSOOBBX..........",
-    "......XXXSOX.XSSOOBBBX..........",
-    ".........XOOXSSOOBBBBX..........",
-    "..........XOSOOOOBBBBX..........",
-    "...........XXOOXOOXOOX..........",
-    ".............XXXXXXXX...........",
-    "................................",
-    "................................",
-]
-
-# Forward Walk Cycle (4-frame natural quadruped stride)
-_GRID_WALK_0 = [
-    "................................",
-    "................................",
-    "................................",
-    "................................",
-    "................................",
-    "................................",
-    "................................",
-    "................................",
-    "................................",
-    "................................",
-    "................................",
-    "................................",
-    "................................",
-    ".............XXX.....XXX........",
-    "............XOOPXXXXXOOPX.......",
-    "............XPOOSSSSOOPPX.......",
-    "............XOOOSOOOSOOOX.......",
-    "............XOOOOOOOOOOOX.......",
-    "............XSOOWOOOWOOSX.......",
-    "..........XXXOOOXOXOXOOOXXX.....",
-    "............XSOOOOOOOOOSX.......",
-    "......XXX.XXXOOOOOOOOOOOXXX.....",
-    ".....XOSSX...XXOOOOOOOXX........",
-    ".....XOSOSX....XOOOOOX..........",
-    "......XXXSOX..XSSOOBBX..........",
-    ".........XOOXXSSOOBBBX..........",
-    "..........XOSOOOOBBBBX..........",
-    ".........XOOXOOOOBBBBOXX........",
-    "........XXOOXOOXOOXOOXOX........",
-    ".........XXXX...XXXXXXXX........",
-    "................................",
-    "................................",
-]
-
-_GRID_WALK_1 = [
-    "................................",
-    "................................",
-    "................................",
-    "................................",
-    "................................",
-    "................................",
-    "................................",
-    "................................",
-    "................................",
-    "................................",
-    "................................",
-    "................................",
-    ".............XXX.....XXX........",
-    "............XOOPXXXXXOOPX.......",
-    "............XPOOSSSSOOPPX.......",
-    "............XOOOSOOOSOOOX.......",
-    "............XOOOOOOOOOOOX.......",
-    "............XSOOWOOOWOOSX.......",
-    "..........XXXOOOXOXOXOOOXXX.....",
-    "............XSOOOOOOOOOSX.......",
-    "..........XXXOOOOOOOOOOOXXX.....",
-    "......XXX....XXOOOOOOOXX........",
-    ".....XOSSX.....XOOOOOX..........",
-    ".....XOSOSX...XSSOOBBX..........",
-    "......XXXSOX.XSSOOBBBX..........",
-    ".........XOOXSSOOBBBBX..........",
-    "..........XOSOOOOBBBBX..........",
-    "...........XXOOXOOXOOX..........",
-    "............XOOXOOXOOX..........",
-    "............XXXXXXXXXX..........",
-    "................................",
-    "................................",
-]
-
-_GRID_WALK_2 = [
-    "................................",
-    "................................",
-    "................................",
-    "................................",
-    "................................",
-    "................................",
-    "................................",
-    "................................",
-    "................................",
-    "................................",
-    "................................",
-    "................................",
-    "................................",
-    ".............XXX.....XXX........",
-    "............XOOPXXXXXOOPX.......",
-    "............XPOOSSSSOOPPX.......",
-    "............XOOOSOOOSOOOX.......",
-    "............XOOOOOOOOOOOX.......",
-    "............XSOOWOOOWOOSX.......",
-    "..........XXXOOOXOXOXOOOXXX.....",
-    "............XSOOOOOOOOOSX.......",
-    "..........XXXOOOOOOOOOOOXXX.....",
-    "......XXX....XXOOOOOOOXX........",
-    ".....XOSSX.....XOOOOOX..........",
-    ".....XOSOSX...XSSOOBBX..........",
-    "......XXXSOX.XSSOOBBBX..........",
-    ".........XOOXSSOOBBBBX..........",
-    "..........XOSOOOOBBBBX..........",
-    "...........XOOXXOOXXOOX.........",
-    "............XXXX..XXXXX.........",
-    "................................",
-    "................................",
-]
-
-_GRID_WALK_3 = _GRID_WALK_1
-
-# Sleep Grids with animated Z floating (Loaf Sleeping Pose)
-_GRID_SLEEP_BASE = [
-    "................................",
-    "................................",
-    "................................",
-    "................................",
-    "................................",
-    "................................",
-    "................................",
-    "................................",
-    "................................",
-    "................................",
-    "................................",
-    "................................",
-    "................................",
-    "................................",
-    "................................",
-    "................................",
-    "..................XXX.....XXX...",
-    ".......XXXXX.....XOOPXXXXXOOPX..",
-    ".....XXOOOOOXXXXXPOOSSSSOOPPX...",
-    "....XOOOOOOOOOOOOOOOSOOOSOOOX...",
-    "...XOOOOOOOOOOOOOOOOOOOOOOOOX...",
-    "...XOOOOOOOOOOOOOOOOOOOOOOOOX...",
-    "...XOOOOOOOOOOOOOOOOOOOOOOOOX...",
-    "...XOOOOOOOOOOOOOXOOOXXXOXOOOXXX",
-    "...XSSSOOOOOOOOOOXOOOOOOOOOSX...",
-    "...XSSSOOOOOOOOOOXOOOOOOOOOOXXX.",
-    "....XOOOOOOOOOOOOOOOOOOOOOOX....",
-    ".....XXXXXXXXXXXXXXXXXXXXXX.....",
-    "................................",
-    "................................",
-    "................................",
-    "................................",
-]
-
-
-def _with_z(base: list[str], coords: list[tuple[int, int]]) -> list[str]:
-    grid = [list(r) for r in base]
-    for x, y in coords:
-        if 0 <= y < len(grid) and 0 <= x < len(grid[y]):
-            grid[y][x] = "Z"
-    return ["".join(r) for r in grid]
-
-
-_Z_SMALL = lambda ox, oy: [(ox, oy), (ox + 1, oy), (ox + 2, oy), (ox + 1, oy + 1), (ox, oy + 2), (ox + 1, oy + 2), (ox + 2, oy + 2)]
-_Z_BIG = lambda ox, oy: [(ox, oy), (ox + 1, oy), (ox + 2, oy), (ox + 3, oy), (ox + 2, oy + 1), (ox + 1, oy + 2), (ox, oy + 3), (ox + 1, oy + 3), (ox + 2, oy + 3), (ox + 3, oy + 3)]
-
-_GRID_SLEEP_0 = _with_z(_GRID_SLEEP_BASE, _Z_SMALL(22, 10))
-_GRID_SLEEP_1 = _with_z(_GRID_SLEEP_BASE, _Z_SMALL(24, 7) + _Z_SMALL(20, 11))
-_GRID_SLEEP_2 = _with_z(_GRID_SLEEP_BASE, _Z_BIG(24, 4) + _Z_SMALL(21, 8))
-_GRID_SLEEP_3 = _with_z(_GRID_SLEEP_BASE, _Z_BIG(25, 2) + _Z_BIG(22, 6) + _Z_SMALL(18, 10))
-
-# React: alert ears, front-facing cheerful happy face with open mouth
-_GRID_REACT = [
-    "................................",
-    "................................",
-    "................................",
-    "................................",
-    "................................",
-    "................................",
-    "................................",
-    "................................",
-    "................................",
-    "................................",
-    "...........XXX.....XXX..........",
-    "..........XPPPXXXXXPPPX.........",
-    "..........XPOOSSSSOOPPX.........",
-    "..........XOOOSOOOSOOOX.........",
-    "..........XOOOOOOOOOOOX.........",
-    "..........XSWWWOWWWOOSX.........",
-    "........XXXSWNWXWNWOOSXXX.......",
-    "..........XSOOOXXXOOOSX.........",
-    "........XXXOOOOXXXOOOOXXX.......",
-    "....XXX...XXOOOOOOOOOXX...XXX...",
-    "...XOOX.....XOBBBBBOX.....XOOX..",
-    "...XOOX....XOBBBBBBBOX....XOOX..",
-    "...XOOX...XOBBBBBBBBBOX...XOOX..",
-    "....XOOX..XOBBBBBBBBBOX..XOOX...",
-    ".....XOOXXXOBBBBBBBBBOXXXOOX....",
-    "......XXOOXOOXBBBBBXOOXOOXX.....",
-    "........XXOOOXBBBBBXOOOXX.......",
-    "..........XXXXXXXXXXXXXXXX......",
-    "................................",
-    "................................",
-    "................................",
-    "................................",
-]
-
-
-# Compile templates
-_T_STAND = _ascii_to_template(_GRID_STAND)
-_T_BLINK = _ascii_to_template(_GRID_BLINK)
-_T_WALK_0 = _ascii_to_template(_GRID_WALK_0)
-_T_WALK_1 = _ascii_to_template(_GRID_WALK_1)
-_T_WALK_2 = _ascii_to_template(_GRID_WALK_2)
-_T_WALK_3 = _ascii_to_template(_GRID_WALK_3)
-
-_T_SLEEP_0 = _ascii_to_template(_GRID_SLEEP_0)
-_T_SLEEP_1 = _ascii_to_template(_GRID_SLEEP_1)
-_T_SLEEP_2 = _ascii_to_template(_GRID_SLEEP_2)
-_T_SLEEP_3 = _ascii_to_template(_GRID_SLEEP_3)
-
-_T_REACT = _ascii_to_template(_GRID_REACT)
-
-_WALK = (_T_WALK_0, _T_WALK_1, _T_WALK_2, _T_WALK_3)
-
-_IDLE = (
-    _T_STAND, _T_STAND, _T_STAND,
-    _T_WALK_1, _T_WALK_1,
-    _T_STAND, _T_STAND, _T_STAND,
-    _T_BLINK,
-    _T_STAND,
-)
-
-_SLEEP = (_T_SLEEP_0, _T_SLEEP_1, _T_SLEEP_2, _T_SLEEP_3)
-_REACT = (_T_REACT,)
-
-FRAMES = {Pose.WALK: _WALK, Pose.IDLE: _IDLE, Pose.SLEEP: _SLEEP, Pose.REACT: _REACT}
-FRAMES.update({pose: tuple(_ascii_to_template(grid) for grid in grids)
-               for pose, grids in extra_grids(_GRID_STAND, _GRID_BLINK).items()})
+FRAMES = {pose: tuple(_ascii_to_template(grid) for grid in grids)
+          for pose, grids in pose_grids().items()}
 
 
 def validate_registry() -> list[str]:
@@ -453,15 +155,34 @@ def frame_count(pose: Pose) -> int:
     return len(FRAMES.get(pose, ()))
 
 
+def _overlay_glyphs(rects) -> list[set[tuple[int, int]]]:
+    """Group floating accent pixels into separately placed glyphs (8-connected)."""
+    pending = {(x, y) for rect in rects
+               for y in range(rect.y, rect.y + rect.height)
+               for x in range(rect.x, rect.x + rect.width)}
+    glyphs = []
+    while pending:
+        stack = [pending.pop()]
+        glyph = set(stack)
+        while stack:
+            x, y = stack.pop()
+            for neighbor in ((x + dx, y + dy) for dx in (-1, 0, 1) for dy in (-1, 0, 1)):
+                if neighbor in pending:
+                    pending.remove(neighbor)
+                    glyph.add(neighbor)
+                    stack.append(neighbor)
+        glyphs.append(glyph)
+    return glyphs
+
+
 def rasterize_frame(skin: SkinId, pose: Pose, frame_index: int, direction: Direction) -> tuple[tuple[str | None, ...], ...]:
     frame = FRAMES[pose][frame_index % frame_count(pose)]
     pixels: list[list[str | None]] = [[None] * FRAME_WIDTH for _ in range(FRAME_HEIGHT)]
     palette = SKINS[skin].palette
-    # Separate body rectangles and floating overlay (Z letters for sleep)
-    body_rects = [r for r in frame.rectangles if r.role is not ColorRole.PATCH_TWO] if pose is Pose.SLEEP else frame.rectangles
-    z_rects = [r for r in frame.rectangles if r.role is ColorRole.PATCH_TWO] if pose is Pose.SLEEP else ()
-
-    for rect in body_rects:
+    overlay = pose in OVERLAY_POSES
+    for rect in frame.rectangles:
+        if overlay and rect.role is ColorRole.PATCH_TWO:
+            continue
         color = palette[rect.role]
         for y in range(rect.y, rect.y + rect.height):
             for x in range(rect.x, rect.x + rect.width):
@@ -470,13 +191,15 @@ def rasterize_frame(skin: SkinId, pose: Pose, frame_index: int, direction: Direc
     if direction is Direction.LEFT:
         pixels = [list(reversed(row)) for row in pixels]
 
-    # Draw Z letters without horizontal flip so they never appear backwards as 'S'
-    for rect in z_rects:
-        color = palette[rect.role]
-        # In left direction, place Z offset relative to cat's head
-        rx = (FRAME_WIDTH - (rect.x + rect.width)) if direction is Direction.LEFT else rect.x
-        for y in range(rect.y, rect.y + rect.height):
-            for x in range(rx, rx + rect.width):
-                pixels[y][x] = color
+    if overlay:
+        # Zs and notes move to the mirrored side but keep their readable shape.
+        color = palette[ColorRole.PATCH_TWO]
+        accents = [rect for rect in frame.rectangles if rect.role is ColorRole.PATCH_TWO]
+        for glyph in _overlay_glyphs(accents):
+            left = min(x for x, _ in glyph)
+            right = max(x for x, _ in glyph)
+            shift = FRAME_WIDTH - 1 - right - left if direction is Direction.LEFT else 0
+            for x, y in glyph:
+                pixels[y][x + shift] = color
 
     return tuple(tuple(row) for row in pixels)

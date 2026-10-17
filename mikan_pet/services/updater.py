@@ -16,6 +16,10 @@ from urllib.error import URLError
 DEFAULT_GITHUB_REPO = os.getenv("MIKAN_PET_REPO", "chsprs/mikan-pet")
 
 
+class ChecksumMismatchError(ValueError):
+    """The downloaded installer does not match the digest published by GitHub."""
+
+
 @dataclass(frozen=True)
 class ReleaseInfo:
     version: str
@@ -40,6 +44,63 @@ def parse_version(v: str) -> tuple[int, ...]:
 def is_newer_version(current: str, candidate: str) -> bool:
     """Return True if candidate version is strictly newer than current version."""
     return parse_version(candidate) > parse_version(current)
+
+
+def release_notes_excerpt(notes: str, limit: int = 300) -> str:
+    """Trim release notes for a dialog, marking only text that was actually cut."""
+    text = notes.strip()
+    if len(text) <= limit:
+        return text
+    return text[:limit].rstrip() + "…"
+
+
+def _with_notes(message: str, release: ReleaseInfo) -> str:
+    excerpt = release_notes_excerpt(release.release_notes)
+    return f"{message}\n\nCatatan rilis:\n{excerpt}" if excerpt else message
+
+
+def up_to_date_message(current: str, release: ReleaseInfo) -> str:
+    """Explain why no update is offered, including a local build newer than GitHub."""
+    if parse_version(current) > parse_version(release.version):
+        return (
+            f"Versi terpasang (v{current}) lebih baru daripada rilis terbaru "
+            f"di GitHub (v{release.version}).\n\nTidak ada pembaruan untuk dipasang."
+        )
+    return (
+        "Mikan Pet sudah versi terbaru.\n\n"
+        f"Versi terpasang: v{current}\n"
+        f"Rilis terbaru di GitHub: v{release.version}"
+    )
+
+
+def update_available_message(current: str, release: ReleaseInfo) -> str:
+    """Ask before downloading; describe what happens to the running pet."""
+    message = (
+        "Versi baru Mikan Pet tersedia.\n\n"
+        f"Versi terpasang: v{current}\n"
+        f"Versi baru: v{release.version}"
+    )
+    if release.installer_url:
+        question = (
+            "Unduh dan pasang sekarang? Installer akan terbuka setelah unduhan "
+            "selesai, lalu Mikan Pet ditutup. Pengaturan Anda tetap tersimpan."
+        )
+    else:
+        question = (
+            "Installer tidak ditemukan di rilis ini. Buka halaman rilis "
+            "di browser untuk memperbarui secara manual?"
+        )
+    return f"{_with_notes(message, release)}\n\n{question}"
+
+
+def update_failure_message(error: Exception) -> str:
+    """Describe a failed download without leaking English exception text for known cases."""
+    if isinstance(error, ChecksumMismatchError):
+        return (
+            "Installer yang diunduh tidak cocok dengan checksum SHA-256 dari GitHub, "
+            "jadi tidak dijalankan.\n\nCoba lagi nanti."
+        )
+    return f"Installer pembaruan gagal diunduh.\n\nDetail: {error}"
 
 
 def _asset_sha256(asset: dict) -> str | None:
@@ -115,7 +176,7 @@ def download_update_installer(
     if expected_sha256 is not None:
         actual_sha256 = hashlib.sha256(data).hexdigest()
         if actual_sha256 != expected_sha256:
-            raise ValueError("update checksum verification failed")
+            raise ChecksumMismatchError("update checksum verification failed")
 
     target_file.parent.mkdir(parents=True, exist_ok=True)
     target_file.write_bytes(data)

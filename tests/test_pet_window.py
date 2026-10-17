@@ -11,6 +11,7 @@ from mikan_pet.services.media_info import MediaTrackInfo
 from mikan_pet.services.media_keys import MediaAction
 from mikan_pet.services.monitors import MonitorInfo, MonitorService
 from mikan_pet.services.settings import AppSettings
+from mikan_pet.services.updater import ChecksumMismatchError, ReleaseInfo
 from mikan_pet.ui.pet_window import AnimationClock, PetWindow, configure_pet_root, context_menu_labels
 
 
@@ -488,6 +489,27 @@ class PetWindowTests(unittest.TestCase):
                 cb()
         showinfo.assert_called_once()
         self.assertIn("terbaru", showinfo.call_args.args[1])
+
+    def test_failed_update_download_reports_reason_after_worker_exits(self) -> None:
+        window, root, *_ = self.make_window()
+        newer = ReleaseInfo("99.0.0", "v99.0.0", "https://example.com/setup.exe", None, "", "")
+        with patch("mikan_pet.services.updater.fetch_latest_release", return_value=newer), \
+             patch("mikan_pet.services.updater.download_update_installer",
+                   side_effect=ChecksumMismatchError("update checksum verification failed")), \
+             patch("mikan_pet.ui.pet_window.messagebox.askyesno", return_value=True) as askyesno, \
+             patch("mikan_pet.ui.pet_window.messagebox.showinfo"), \
+             patch("mikan_pet.ui.pet_window.messagebox.showerror") as showerror, \
+             patch("threading.Thread", side_effect=lambda target, daemon: SimpleNamespace(start=target)):
+            index = len(root.after_calls)
+            window._check_for_updates()
+            while index < len(root.after_calls):
+                _, callback, _ = root.after_calls[index]
+                index += 1
+                if callback != window._tick:
+                    callback()
+        self.assertIn("v99.0.0", askyesno.call_args.args[1])
+        showerror.assert_called_once()
+        self.assertIn("checksum SHA-256", showerror.call_args.args[1])
 
     def test_button_press_and_release_animation(self) -> None:
         window, root, controller, _, media_service, _, _ = self.make_window()

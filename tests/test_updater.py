@@ -9,13 +9,29 @@ from unittest.mock import MagicMock, Mock, patch
 from urllib.error import URLError
 
 from mikan_pet.services.updater import (
+    ChecksumMismatchError,
     ReleaseInfo,
     download_update_installer,
     fetch_latest_release,
     is_newer_version,
     launch_installer_updater,
     parse_version,
+    release_notes_excerpt,
+    up_to_date_message,
+    update_available_message,
+    update_failure_message,
 )
+
+
+def release(version: str = "0.2.0", notes: str = "", installer: bool = True) -> ReleaseInfo:
+    return ReleaseInfo(
+        version=version,
+        tag_name=f"v{version}",
+        installer_url="https://example.com/MikanPet-Setup-x64.exe" if installer else None,
+        installer_sha256=None,
+        html_url="https://example.com/release",
+        release_notes=notes,
+    )
 
 
 class UpdaterTests(unittest.TestCase):
@@ -113,7 +129,7 @@ class UpdaterTests(unittest.TestCase):
         with TemporaryDirectory() as tmp_dir:
             target_path = Path(tmp_dir) / "MikanPet-Setup.exe"
             with patch("urllib.request.urlopen", return_value=mock_response):
-                with self.assertRaisesRegex(ValueError, "checksum"):
+                with self.assertRaisesRegex(ChecksumMismatchError, "checksum"):
                     download_update_installer(
                         "https://example.com/MikanPet-Setup-x64.exe",
                         target_path,
@@ -129,6 +145,48 @@ class UpdaterTests(unittest.TestCase):
             with patch("sys.platform", "win32"):
                 launch_installer_updater(installer)
             mock_shell.assert_called_once_with(None, "open", str(installer), None, None, 1)
+
+
+
+class UpdateMessageTests(unittest.TestCase):
+    def test_notes_excerpt_marks_only_real_truncation(self) -> None:
+        self.assertEqual("Perbaikan kecil", release_notes_excerpt("  Perbaikan kecil\n"))
+        self.assertEqual("", release_notes_excerpt("   "))
+        long_notes = "a" * 301
+        self.assertEqual("a" * 300 + "…", release_notes_excerpt(long_notes))
+
+    def test_up_to_date_message_states_versions_without_overclaiming(self) -> None:
+        message = up_to_date_message("0.2.0", release("0.2.0"))
+        self.assertIn("sudah versi terbaru", message)
+        self.assertIn("v0.2.0", message)
+        for claim in ("Bebas bug", "100%", "SESUAI"):
+            self.assertNotIn(claim, message)
+
+    def test_up_to_date_message_explains_local_build_newer_than_github(self) -> None:
+        message = up_to_date_message("0.3.0", release("0.2.0"))
+        self.assertIn("lebih baru", message)
+        self.assertIn("v0.3.0", message)
+        self.assertIn("v0.2.0", message)
+
+    def test_update_available_message_describes_installer_flow(self) -> None:
+        message = update_available_message("0.1.0", release("0.2.0", notes="Animasi baru"))
+        self.assertIn("v0.1.0", message)
+        self.assertIn("v0.2.0", message)
+        self.assertIn("Catatan rilis:\nAnimasi baru", message)
+        self.assertIn("Installer akan terbuka", message)
+        self.assertNotIn("tanpa perlu install ulang", message)
+        self.assertNotIn("...", message)
+
+    def test_update_available_without_installer_offers_release_page(self) -> None:
+        message = update_available_message("0.1.0", release("0.2.0", installer=False))
+        self.assertIn("halaman rilis", message)
+        self.assertNotIn("Catatan rilis", message)
+
+    def test_failure_message_explains_checksum_mismatch_in_indonesian(self) -> None:
+        mismatch = update_failure_message(ChecksumMismatchError("update checksum verification failed"))
+        self.assertIn("checksum SHA-256", mismatch)
+        self.assertNotIn("verification failed", mismatch)
+        self.assertIn("timeout", update_failure_message(TimeoutError("timeout")))
 
 
 if __name__ == "__main__":

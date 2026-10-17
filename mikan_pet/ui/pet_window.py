@@ -353,7 +353,6 @@ class PetWindow:
     def _check_for_updates(self) -> None:
         import threading
         from pathlib import Path
-        import sys
         from mikan_pet import __version__
         from mikan_pet.services.updater import (
             DEFAULT_GITHUB_REPO,
@@ -361,6 +360,9 @@ class PetWindow:
             fetch_latest_release,
             is_newer_version,
             launch_installer_updater,
+            up_to_date_message,
+            update_available_message,
+            update_failure_message,
         )
 
         def worker() -> None:
@@ -369,27 +371,20 @@ class PetWindow:
                 self.root.after(
                     0,
                     lambda: messagebox.showwarning(
-                        "Mikan Pet",
-                        "Tidak dapat memeriksa pembaruan.\nPeriksa koneksi internet Anda.",
+                        "Mikan Pet - Periksa Pembaruan",
+                        "Tidak dapat menghubungi GitHub untuk memeriksa pembaruan.\n"
+                        "Periksa koneksi internet Anda, lalu coba lagi.",
                         parent=self.root,
                     ),
                 )
                 return
 
             if not is_newer_version(__version__, release.version):
-                notes = release.release_notes.strip()
-                summary = f"\n\nCatatan rilis:\n{notes[:300]}..." if notes else ""
-                msg = (
-                    f"Status: SESUAI DENGAN GITHUB\n\n"
-                    f"• Versi terpasang: v{__version__}\n"
-                    f"• Versi GitHub terbaru: v{release.version}\n"
-                    f"• Hasil verifikasi: Bebas bug versi (versi terbaru){summary}\n\n"
-                    f"Aplikasi Mikan Pet yang terpasang sudah 100% sinkron dengan rilis resmi di GitHub."
-                )
+                msg = up_to_date_message(__version__, release)
                 self.root.after(
                     0,
                     lambda: messagebox.showinfo(
-                        "Mikan Pet - Verifikasi Versi GitHub",
+                        "Mikan Pet - Sudah Versi Terbaru",
                         msg,
                         parent=self.root,
                     ),
@@ -397,18 +392,9 @@ class PetWindow:
                 return
 
             def on_confirm_update() -> None:
-                notes = release.release_notes.strip()
-                summary = f"\n\nCatatan rilis:\n{notes[:300]}..." if notes else ""
-                msg = (
-                    f"Status: BELUM SESUAI DENGAN GITHUB\n\n"
-                    f"• Versi terpasang: v{__version__}\n"
-                    f"• Versi GitHub terbaru: v{release.version} (lebih baru)\n"
-                    f"{summary}\n\n"
-                    f"Apakah Anda ingin memperbarui sekarang tanpa perlu install ulang?"
-                )
                 should_update = messagebox.askyesno(
                     "Mikan Pet - Pembaruan Tersedia",
-                    msg,
+                    update_available_message(__version__, release),
                     parent=self.root,
                 )
                 if not should_update:
@@ -417,12 +403,6 @@ class PetWindow:
                 if not release.installer_url:
                     import webbrowser
                     webbrowser.open(release.html_url)
-                    messagebox.showwarning(
-                        "Mikan Pet - Pembaruan Manual Diperlukan",
-                        "Paket installer pembaruan tidak tersedia.\n"
-                        "Halaman rilis resmi telah dibuka untuk pembaruan manual.",
-                        parent=self.root,
-                    )
                     return
 
                 def download_worker() -> None:
@@ -437,11 +417,13 @@ class PetWindow:
                         launch_installer_updater(installer_path)
                         self.root.after(0, self.close)
                     except Exception as err:
+                        # Format now: Python unbinds ``err`` when the except block ends.
+                        failure = update_failure_message(err)
                         self.root.after(
                             0,
                             lambda: messagebox.showerror(
                                 "Mikan Pet - Gagal Memperbarui",
-                                f"Gagal mengunduh installer pembaruan:\n{err}",
+                                failure,
                                 parent=self.root,
                             ),
                         )
@@ -449,7 +431,8 @@ class PetWindow:
                 threading.Thread(target=download_worker, daemon=True).start()
                 messagebox.showinfo(
                     "Mikan Pet - Mengunduh Pembaruan",
-                    f"Installer pembaruan v{release.version} sedang diunduh di latar belakang.\n\nSetelah selesai, installer akan otomatis dijalankan.",
+                    f"Installer v{release.version} sedang diunduh di latar belakang.\n\n"
+                    "Installer akan terbuka otomatis setelah unduhan selesai.",
                     parent=self.root,
                 )
 

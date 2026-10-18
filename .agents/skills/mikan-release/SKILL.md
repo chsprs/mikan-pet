@@ -126,6 +126,7 @@ Nama secret dapat diaudit dengan `gh secret list`; nilainya tidak boleh dicetak 
 ## Catatan Rilis dan Release Gagal
 
 - Baca kembali `body` release dari GitHub; keberhasilan action tidak membuktikan catatan rilis sudah lengkap.
+- Workflow memakai `docs/releases/vX.Y.Z.md` sebagai body release bila file itu ada, dan jatuh ke daftar commit bila tidak. Dialog Periksa Pembaruan menampilkan 300 karakter pertama body, jadi tulis ringkasan pengguna di awal.
 - Gunakan teks ASCII-safe atau UTF-8 tanpa BOM untuk file catatan yang dikonsumsi GitHub Actions.
 - Jika ada tag gagal di antara dua release yang dipublikasikan, generator berbasis tag bisa melewatkan commit. Pastikan catatan mencakup semua perubahan sejak release terakhir yang benar-benar dipublikasikan.
 - Jika tag sudah dipush tetapi workflow gagal, perbaiki penyebab di `main`, naikkan patch version, lalu rilis tag baru. Biarkan tag lama sebagai rekam jejak kecuali pengguna secara eksplisit meminta penghapusan.

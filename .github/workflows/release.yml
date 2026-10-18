@@ -107,6 +107,11 @@ jobs:
 
           $commits
           "@
+          # Hand-written notes for this tag win; the update dialog shows their opening lines.
+          $curated = Join-Path $PWD "docs\releases\$($tag).md"
+          if (Test-Path -LiteralPath $curated) {
+            $notes = [IO.File]::ReadAllText($curated, [Text.Encoding]::UTF8)
+          }
           [IO.File]::WriteAllText(
             (Join-Path $PWD 'release_notes.md'),
             $notes,
